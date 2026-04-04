@@ -7,9 +7,18 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Alertes centralisées.
-     * Générées par le Scheduler Laravel (cron quotidien)
-     * ou immédiatement lors d'événements critiques.
+     * Table `alerts` : centre de notifications et d'alertes centralisé.
+     *
+     * Les alertes sont générées par deux mécanismes :
+     *   1. Scheduler quotidien (app/Console/Commands) → expiration de documents,
+     *      visites médicales dues, retards de retour, amendes impayées…
+     *   2. En temps réel lors d'événements critiques → anomalie sur fiche de contrôle,
+     *      nouvelle infraction, permis expiré lors d'une tentative d'affectation.
+     *
+     * Chaque alerte cible un objet polymorphique (véhicule, chauffeur, utilisateur
+     * ou demande) et peut être envoyée sur plusieurs canaux (email, SMS, in-app).
+     *
+     * Workflow : new → seen → processed / ignored
      */
     public function up(): void
     {

@@ -7,10 +7,19 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Infractions routières.
-     * Le conducteur peut être un chauffeur (driver_id) OU un collaborateur (user_id).
-     * L'identification auto se fait via l'affectation ou la demande active
-     * au moment de l'infraction (datetime_occurred).
+     * Table `infractions` : infractions routières constatées.
+     *
+     * Le conducteur responsable peut être :
+     *   - Un chauffeur professionnel → driver_id renseigné
+     *   - Un collaborateur non-chauffeur → user_id renseigné
+     *   - Inconnu au moment de la saisie → les deux à null
+     *
+     * L'identification automatique (règle métier #6) se fait via
+     * Infraction::identifyDriverAuto() qui cherche l'assignment ou
+     * vehicle_request actif au datetime_occurred pour ce véhicule.
+     *
+     * Le champ `imputation` détermine qui supporte financièrement l'amende
+     * (société, chauffeur, en attente de décision).
      */
     public function up(): void
     {

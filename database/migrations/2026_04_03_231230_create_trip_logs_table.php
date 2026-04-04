@@ -7,10 +7,14 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Carnet de bord numérique.
-     * Un trajet est une sortie unique dans le cadre d'une affectation
-     * ou d'une demande de véhicule.
-     * Une affectation peut contenir plusieurs trajets.
+     * Table `trip_logs` : carnet de bord numérique des trajets effectués.
+     *
+     * Chaque enregistrement représente une sortie physique du véhicule.
+     * Une affectation (ou une demande de véhicule) peut générer plusieurs trajets.
+     * L'un des deux liens (assignment_id OU request_id) doit être renseigné.
+     *
+     * Les colonnes GPS (lat/lng start/end) sont optionnelles et destinées à une
+     * intégration future de tracking en temps réel.
      */
     public function up(): void
     {

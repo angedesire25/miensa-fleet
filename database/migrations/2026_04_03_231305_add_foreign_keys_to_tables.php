@@ -7,6 +7,12 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
+     * Migration de résolution des dépendances circulaires entre tables.
+     *
+     * Certaines FK n'ont pas pu être créées dans leur migration d'origine
+     * car la table référencée n'existait pas encore au moment de la création.
+     * Cette migration est exécutée après toutes les tables et ajoute :
+     *
      * Résolution de la référence circulaire :
      *   users.driver_id → drivers   (ajout après création de drivers)
      *   vehicles.current_driver_id → drivers  (déjà défini, mais nécessite drivers)

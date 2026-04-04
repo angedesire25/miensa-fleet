@@ -7,17 +7,24 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Tables Spatie Laravel Permission.
-     * Reproduit le schéma officiel du package avec nos ajustements.
+     * Tables Spatie Laravel Permission (package spatie/laravel-permission v7).
+     * Reproduit le schéma officiel avec colonnes supplémentaires métier.
      *
-     * Rôles définis :
-     *   super-admin       → Niveau 1 — Accès absolu
-     *   admin             → Niveau 2 — Gestion complète
-     *   fleet-manager     → Niveau 3 — Opérations quotidiennes
-     *   controller        → Niveau 4 — Terrain (fiches, km, infractions)
-     *   director          → Niveau 5 — Lecture + rapports
-     *   collaborator      → Niveau 6 — Demandes de véhicule
-     *   driver-user       → Niveau 7 — Portail chauffeur personnel
+     * Tables créées :
+     *   - `permissions`           : liste des permissions granulaires
+     *   - `roles`                 : rôles utilisateurs avec hiérarchie (level)
+     *   - `model_has_permissions` : permissions accordées directement à un modèle
+     *   - `model_has_roles`       : rôles attribués à un modèle (User principalement)
+     *   - `role_has_permissions`  : permissions accordées via un rôle
+     *
+     * Rôles applicatifs (level = priorité, 1 = plus élevée) :
+     *   super-admin   (1) → Accès absolu, gestion technique
+     *   admin         (2) → Gestion complète de la flotte et des utilisateurs
+     *   fleet-manager (3) → Opérations quotidiennes (affectations, demandes)
+     *   controller    (4) → Terrain : fiches de contrôle, km, infractions
+     *   director      (5) → Lecture seule + accès aux rapports
+     *   collaborator  (6) → Demandes de véhicule uniquement
+     *   driver-user   (7) → Portail chauffeur : consultation de ses propres données
      */
     public function up(): void
     {

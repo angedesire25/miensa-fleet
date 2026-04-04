@@ -6,12 +6,23 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    /**
+     * Table `vehicles` : parc de véhicules de la flotte.
+     *
+     * Contient toutes les informations administratives, techniques et opérationnelles
+     * de chaque véhicule. La colonne `current_driver_id` est dénormalisée pour des
+     * raisons de performance (évite une jointure sur assignments).
+     *
+     * Note : la FK `current_driver_id → drivers` est ajoutée dans
+     * `add_foreign_keys_to_tables` pour résoudre la dépendance circulaire
+     * vehicles ↔ drivers.
+     */
     public function up(): void
     {
         Schema::create('vehicles', function (Blueprint $table) {
             $table->id();
 
-            // Identité du véhicule
+            // ── Identité du véhicule ────────────────────────────────────────
             $table->string('brand', 60);                  // Marque
             $table->string('model', 60);                  // Modèle
             $table->string('plate', 20)->unique();        // Immatriculation

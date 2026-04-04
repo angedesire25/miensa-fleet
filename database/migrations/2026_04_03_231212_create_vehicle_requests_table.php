@@ -7,8 +7,13 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Demandes de véhicule par les collaborateurs non-chauffeurs.
+     * Table `vehicle_requests` : demandes de véhicule par les collaborateurs non-chauffeurs.
+     *
+     * Permet à tout employé disposant du rôle `collaborator` de réserver un véhicule
+     * pour un déplacement professionnel. Le gestionnaire de flotte approuve ou refuse.
+     *
      * Workflow : pending → approved/rejected → confirmed → in_progress → completed
+     *                                        ↳ cancelled (annulation demandeur)
      */
     public function up(): void
     {

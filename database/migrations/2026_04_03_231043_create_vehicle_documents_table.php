@@ -6,6 +6,14 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    /**
+     * Table `vehicle_documents` : documents administratifs des véhicules.
+     *
+     * Stocke les pièces légales obligatoires (assurance, visite technique,
+     * carte grise, autorisation de transport) avec leur date d'expiration.
+     * Le champ `status` est mis à jour automatiquement par le scheduler
+     * d'alertes (cron quotidien) selon la date d'expiration.
+     */
     public function up(): void
     {
         Schema::create('vehicle_documents', function (Blueprint $table) {

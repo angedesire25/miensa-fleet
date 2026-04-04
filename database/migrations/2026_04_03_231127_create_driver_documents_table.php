@@ -6,6 +6,15 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    /**
+     * Table `driver_documents` : documents administratifs des chauffeurs.
+     *
+     * Regroupe toutes les pièces justificatives liées au statut légal du chauffeur :
+     * permis de conduire, visite médicale d'aptitude, formations, contrat…
+     * Le champ `medical_result` (fit/fit_with_restrictions/unfit) détermine si le
+     * chauffeur est apte à conduire — un résultat "unfit" doit bloquer les affectations.
+     * Le champ `next_check_date` déclenche une alerte avant la prochaine visite médicale.
+     */
     public function up(): void
     {
         Schema::create('driver_documents', function (Blueprint $table) {

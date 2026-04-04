@@ -7,6 +7,11 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
+     * Table `assignments` : affectations de véhicules aux chauffeurs professionnels.
+     *
+     * Représente le contrat opérationnel "ce chauffeur utilise ce véhicule
+     * du datetime_start au datetime_end_planned".
+     *
      * RÈGLE MÉTIER CRITIQUE :
      * Un chauffeur peut avoir PLUSIEURS affectations dans la même journée.
      * Ex: Véhicule A de 08h00 à 08h30, puis Véhicule B de 09h00 à 17h30.

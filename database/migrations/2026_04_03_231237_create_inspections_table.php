@@ -7,8 +7,15 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Fiche de contrôle journalière — digitalisation de la fiche papier.
-     * 14 points de contrôle + liaison possible à une affectation ou demande.
+     * Table `inspections` : fiches de contrôle véhicule — digitalisation de la fiche papier.
+     *
+     * Couvre 14 points de contrôle (huile, freins, feux, pneus, documents légaux…).
+     * Une fiche peut être liée à une affectation (inspection au départ/retour chauffeur)
+     * ou à une demande de véhicule, ou effectuée de manière autonome (routine).
+     *
+     * Le booléen `has_critical_issue` est calculé automatiquement dans le modèle
+     * Inspection (boot→saving) depuis oil_level=low, brakes_status=critical ou
+     * lights_status=critical. Il est indexé pour permettre les alertes immédiates.
      */
     public function up(): void
     {

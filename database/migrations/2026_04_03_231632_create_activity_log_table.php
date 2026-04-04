@@ -7,12 +7,20 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Journal d'audit complet — Spatie Laravel Activitylog.
-     * Enregistre TOUTES les actions sensibles avec :
-     *   - Qui a fait quoi (causer)
-     *   - Sur quel objet (subject)
-     *   - Quelles données ont changé (properties: old/attributes)
-     *   - Depuis quelle IP
+     * Table `activity_log` : journal d'audit complet (Spatie Laravel Activitylog v4).
+     *
+     * Enregistre toutes les actions sensibles sur les modèles configurés avec LogsActivity :
+     *   - Qui a fait quoi  → causer_type / causer_id (polymorphique, généralement User)
+     *   - Sur quel objet   → subject_type / subject_id (polymorphique : Vehicle, Driver…)
+     *   - Quelles données  → properties.old / properties.attributes (avant/après)
+     *   - Quel contexte    → log_name (par domaine : 'vehicles', 'drivers', 'users'…)
+     *
+     * Modèles audités : User, Vehicle, VehicleDocument, Driver, DriverDocument,
+     *                   Assignment, VehicleRequest, Infraction.
+     *
+     * Note : `description` est en VARCHAR(255) au lieu de TEXT pour permettre
+     * l'indexation MySQL. Les descriptions courtes ('created', 'updated', 'deleted')
+     * ne dépassent jamais cette limite.
      */
     public function up(): void
     {

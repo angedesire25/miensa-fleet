@@ -6,12 +6,28 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    /**
+     * Table `users` : comptes utilisateurs de l'application.
+     *
+     * Regroupe tous les types d'acteurs :
+     *   - Administrateurs / gestionnaires de flotte / contrôleurs
+     *   - Collaborateurs (non-chauffeurs) pouvant faire des demandes de véhicule
+     *   - Chauffeurs professionnels (liés à un profil Driver via driver_id)
+     *
+     * Les rôles fins sont gérés par Spatie Permission (table roles / model_has_roles).
+     * La colonne `driver_id` est ajoutée dans add_foreign_keys_to_tables pour
+     * éviter la dépendance circulaire avec la table `drivers`.
+     *
+     * Tables connexes créées dans cette même migration :
+     *   - `password_reset_tokens` : tokens de réinitialisation de mot de passe
+     *   - `sessions`              : sessions utilisateur (driver = database)
+     */
     public function up(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
 
-            // Identité
+            // ── Identité ────────────────────────────────────────────────────
             $table->string('name');
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();

@@ -6,6 +6,17 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    /**
+     * Table `drivers` : profils des chauffeurs professionnels de la flotte.
+     *
+     * Distinct de la table `users` : un chauffeur peut ou non avoir un compte
+     * utilisateur (lien via users.driver_id). Cette séparation permet de gérer
+     * des chauffeurs sans accès à l'application.
+     *
+     * Les colonnes `total_km`, `total_assignments`, `total_infractions` sont des
+     * statistiques dénormalisées maintenues à jour par l'observer DriverObserver
+     * (app/Observers/DriverObserver.php) pour éviter les agrégations répétées.
+     */
     public function up(): void
     {
         Schema::create('drivers', function (Blueprint $table) {

@@ -21,6 +21,8 @@ class VehicleRequest extends Model
     protected $fillable = [
         'requester_id',
         'vehicle_id',
+        'driver_id',
+        'self_driving',
         'vehicle_type_preferred',
         'datetime_start',
         'datetime_end_planned',
@@ -54,6 +56,7 @@ class VehicleRequest extends Model
             'datetime_end_actual'  => 'datetime',
             'reviewed_at'          => 'datetime',
             'is_urgent'            => 'boolean',
+            'self_driving'         => 'boolean',
             'passengers'           => 'integer',
             'km_limit'             => 'integer',
             'km_start'             => 'integer',
@@ -90,6 +93,12 @@ class VehicleRequest extends Model
     public function vehicle(): BelongsTo
     {
         return $this->belongsTo(Vehicle::class);
+    }
+
+    /** Chauffeur professionnel affecté par le gestionnaire (nullable) */
+    public function driver(): BelongsTo
+    {
+        return $this->belongsTo(Driver::class);
     }
 
     /** Gestionnaire qui a traité la demande (approbation ou refus) */

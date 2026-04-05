@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
@@ -118,6 +119,38 @@ class Assignment extends Model
     public function tripLogs(): HasMany
     {
         return $this->hasMany(TripLog::class);
+    }
+
+    /**
+     * Toutes les photos du véhicule associé à cette affectation,
+     * tous contextes confondus (départ, retour, inspection…).
+     * Passe par la table vehicle_photos via la relation vehicle → photos.
+     */
+    public function photos(): HasManyThrough
+    {
+        return $this->hasManyThrough(VehiclePhoto::class, Vehicle::class);
+    }
+
+    /**
+     * Photos prises au départ pour cette affectation.
+     * Contexte = 'departure' dans la table vehicle_photos.
+     */
+    public function departurePhotos(): HasMany
+    {
+        return $this->hasMany(VehiclePhoto::class, 'photoable_id')
+                    ->where('photoable_type', self::class)
+                    ->where('context', 'departure');
+    }
+
+    /**
+     * Photos prises au retour pour cette affectation.
+     * Contexte = 'return' dans la table vehicle_photos.
+     */
+    public function returnPhotos(): HasMany
+    {
+        return $this->hasMany(VehiclePhoto::class, 'photoable_id')
+                    ->where('photoable_type', self::class)
+                    ->where('context', 'return');
     }
 
     // ── Scopes ─────────────────────────────────────────────────────────────

@@ -7,19 +7,24 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class Inspection extends Model
 {
-    use HasFactory;
+    use HasFactory, LogsActivity;
 
     protected $fillable = [
         'vehicle_id',
         'inspector_id',
+        'driver_id',
         'assignment_id',
         'request_id',
         'inspected_at',
         'location',
         'inspection_type',
+        'status',
+        // 14 points de contrôle
         'km',
         'oil_level',
         'oil_notes',
@@ -44,6 +49,12 @@ class Inspection extends Model
         'general_observations',
         'signature_path',
         'has_critical_issue',
+        // Archivage
+        'archived_at',
+        // Validation
+        'validated_by',
+        'validated_at',
+        'rejection_reason',
     ];
 
     protected $appends = ['is_critical'];
@@ -55,6 +66,8 @@ class Inspection extends Model
             'insurance_expiry'           => 'date',
             'technical_control_expiry'   => 'date',
             'oil_change_date'            => 'date',
+            'validated_at'               => 'datetime',
+            'archived_at'                => 'datetime',
             'km'                         => 'integer',
             'fuel_level_pct'             => 'integer',
             'registration_present'       => 'boolean',
@@ -63,74 +76,102 @@ class Inspection extends Model
         ];
     }
 
+    // ── Spatie Activitylog ──────────────────────────────────────────────────
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->useLogName('inspections')
+            ->logOnly(['vehicle_id', 'inspector_id', 'status', 'inspection_type', 'inspected_at', 'has_critical_issue'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs();
+    }
+
     // ── Auto-synchronisation de has_critical_issue ─────────────────────────
 
     protected static function boot(): void
     {
         parent::boot();
 
-        // Avant chaque enregistrement, recalcule has_critical_issue depuis les points
-        // de contrôle individuels pour garantir la cohérence avec la colonne DB.
         static::saving(function (Inspection $inspection): void {
             $inspection->has_critical_issue =
-                $inspection->oil_level         === 'low'
-                || $inspection->brakes_status  === 'critical'
-                || $inspection->lights_status  === 'critical';
+                $inspection->oil_level        === 'low'
+                || $inspection->brakes_status === 'critical'
+                || $inspection->lights_status === 'critical';
         });
     }
 
     // ── Relations ──────────────────────────────────────────────────────────
 
-    /** Véhicule contrôlé */
     public function vehicle(): BelongsTo
     {
         return $this->belongsTo(Vehicle::class);
     }
 
-    /** Agent ou gestionnaire qui a effectué le contrôle */
+    /** Utilisateur (contrôleur/agent) qui a rempli la fiche */
     public function inspector(): BelongsTo
     {
         return $this->belongsTo(User::class, 'inspector_id');
     }
 
-    /** Affectation dans le cadre de laquelle la fiche a été remplie (optionnel) */
+    /** Chauffeur concerné par l'inspection */
+    public function driver(): BelongsTo
+    {
+        return $this->belongsTo(Driver::class);
+    }
+
     public function assignment(): BelongsTo
     {
         return $this->belongsTo(Assignment::class);
     }
 
-    /** Demande de véhicule liée à ce contrôle (optionnel) */
     public function vehicleRequest(): BelongsTo
     {
         return $this->belongsTo(VehicleRequest::class, 'request_id');
     }
 
+    /** Gestionnaire qui a validé la fiche */
+    public function validatedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'validated_by');
+    }
+
     // ── Scopes ─────────────────────────────────────────────────────────────
 
-    /** Fiches révélant une anomalie critique */
     public function scopeCritical(Builder $query): Builder
     {
         return $query->where('has_critical_issue', true);
     }
 
-    /** Fiches d'un type donné (departure, return, routine) */
     public function scopeOfType(Builder $query, string $type): Builder
     {
         return $query->where('inspection_type', $type);
     }
 
+    public function scopeSubmitted(Builder $query): Builder
+    {
+        return $query->where('status', 'submitted');
+    }
+
+    public function scopeToday(Builder $query): Builder
+    {
+        return $query->whereDate('inspected_at', today());
+    }
+
+    /** Fiches non archivées (filtre par défaut) */
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->whereNull('archived_at');
+    }
+
+    /** Fiches archivées uniquement */
+    public function scopeArchived(Builder $query): Builder
+    {
+        return $query->whereNotNull('archived_at');
+    }
+
     // ── Accessors ──────────────────────────────────────────────────────────
 
-    /**
-     * Calcul dynamique de l'anomalie critique depuis les 3 points de contrôle clés :
-     *   - Niveau d'huile moteur à "low"
-     *   - État des freins "critical"
-     *   - État des feux "critical"
-     *
-     * La valeur de `has_critical_issue` en base est synchronisée automatiquement
-     * dans `boot()->saving()` ci-dessus, ce qui permet de filtrer en SQL.
-     * Cet accesseur est utile pour un calcul à la volée sans requête DB.
-     */
     protected function isCritical(): Attribute
     {
         return Attribute::make(
@@ -142,11 +183,39 @@ class Inspection extends Model
 
     // ── Helpers ────────────────────────────────────────────────────────────
 
-    /** Vérifie si les documents légaux (assurance + CT) sont en ordre */
     public function hasValidDocuments(): bool
     {
         return $this->insurance_status         === 'present'
             && $this->technical_control_status === 'present'
             && $this->registration_present     === true;
+    }
+
+    public function isDraft(): bool    { return $this->status === 'draft'; }
+    public function isSubmitted(): bool { return $this->status === 'submitted'; }
+    public function isValidated(): bool { return $this->status === 'validated'; }
+    public function isRejected(): bool  { return $this->status === 'rejected'; }
+
+    public function isArchived(): bool
+    {
+        return !is_null($this->archived_at);
+    }
+
+    /** Une fiche peut être modifiée si elle est en brouillon ou renvoyée pour correction, et non archivée */
+    public function canEdit(): bool
+    {
+        return in_array($this->status, ['draft', 'rejected']) && !$this->isArchived();
+    }
+
+    /** Score de complétion (0–100) basé sur les 14 points renseignés */
+    public function completionScore(): int
+    {
+        $fields = [
+            'km', 'oil_level', 'coolant_level', 'brake_fluid_level',
+            'tire_pressure', 'fuel_level_pct',
+            'insurance_status', 'technical_control_status', 'registration_present',
+            'oil_change_status', 'lights_status', 'brakes_status',
+        ];
+        $filled = collect($fields)->filter(fn($f) => !is_null($this->$f))->count();
+        return (int) round($filled / count($fields) * 100);
     }
 }

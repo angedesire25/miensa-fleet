@@ -3,7 +3,22 @@
     "allow": [
       "Bash(php artisan:*)",
       "Bash(php -r ':*)",
-      "Bash(composer require:*)"
+      "Bash(composer require:*)",
+      "Bash(php -l app/Exceptions/AssignmentConflictException.php)",
+      "Bash(php -l app/Services/AssignmentService.php)",
+      "Bash(net start:*)",
+      "Bash(sc query:*)",
+      "Bash(findstr -i mysql)",
+      "Bash(tasklist)",
+      "Read(//c/laragon/bin/mysql//**)",
+      "Read(//c/laragon/bin//**)",
+      "Bash(\"/c/laragon/bin/mysql/mysql-8.4.3-winx64/bin/mysqld\" --defaults-file=\"/c/laragon/bin/mysql/mysql-8.4.3-winx64/my.ini\" --standalone)",
+      "Bash(\"/c/laragon/bin/mysql/mysql-8.4.3-winx64/bin/mysql\" -u root -e \"SELECT 1\")",
+      "Bash(grep -A 20 \"vehicle_type\" /c/laragon/www/miensa-fleet/database/migrations/2026_04_03_*.php)",
+      "Bash(npm run:*)",
+      "Bash(npm install:*)",
+      "Bash(\"/c/laragon/bin/mysql/mysql-8.4.3-winx64/bin/mysqld\" --standalone)",
+      "Bash(php -r \"require 'vendor/autoload.php';\")"
     ]
   }
 }

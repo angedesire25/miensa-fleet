@@ -5,13 +5,18 @@ namespace App\Providers;
 use App\Models\Assignment;
 use App\Models\DriverDocument;
 use App\Models\Infraction;
+use App\Models\PartReplacement;
+use App\Models\Repair;
 use App\Models\VehicleDocument;
 use App\Models\VehicleRequest;
 use App\Observers\AssignmentObserver;
 use App\Observers\DriverDocumentObserver;
 use App\Observers\InfractionObserver;
+use App\Observers\PartReplacementObserver;
+use App\Observers\RepairObserver;
 use App\Observers\VehicleDocumentObserver;
 use App\Observers\VehicleRequestObserver;
+use Carbon\Carbon;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -40,13 +45,20 @@ class AppServiceProvider extends ServiceProvider
      *   Infraction           → auto-identification conducteur, total_infractions
      *   DriverDocument       → recalcul automatique du statut selon expiry_date
      *   VehicleDocument      → recalcul automatique du statut selon expiry_date
+     *   Repair               → statut véhicule (maintenance/available), warranty_expiry, alertes récurrence
+     *   PartReplacement      → days_until_failure, under_warranty_at_failure, alerte garantie
      */
     public function boot(): void
     {
+        // Langue française pour toutes les dates Carbon/diffForHumans
+        Carbon::setLocale('fr');
+
         Assignment::observe(AssignmentObserver::class);
         VehicleRequest::observe(VehicleRequestObserver::class);
         Infraction::observe(InfractionObserver::class);
         DriverDocument::observe(DriverDocumentObserver::class);
         VehicleDocument::observe(VehicleDocumentObserver::class);
+        Repair::observe(RepairObserver::class);
+        PartReplacement::observe(PartReplacementObserver::class);
     }
 }

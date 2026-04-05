@@ -61,7 +61,7 @@ class Vehicle extends Model
         ];
     }
 
-    protected $appends = ['needs_service'];
+    protected $appends = ['needs_service', 'main_photo_url', 'current_battery'];
 
     // ── Spatie Activitylog ──────────────────────────────────────────────────
 
@@ -143,6 +143,77 @@ class Vehicle extends Model
         return $this->hasMany(TripLog::class);
     }
 
+    /** Toutes les photos de ce véhicule (tous contextes confondus) */
+    public function photos(): HasMany
+    {
+        return $this->hasMany(VehiclePhoto::class);
+    }
+
+    /**
+     * Photo de profil principale du véhicule (contexte = vehicle_profile).
+     * Retourne la plus récente si plusieurs photos de profil existent.
+     */
+    public function profilePhoto(): HasOne
+    {
+        return $this->hasOne(VehiclePhoto::class)
+                    ->where('context', 'vehicle_profile')
+                    ->latest();
+    }
+
+    /** Tous les sinistres déclarés pour ce véhicule */
+    public function incidents(): HasMany
+    {
+        return $this->hasMany(Incident::class);
+    }
+
+    /**
+     * Sinistre en cours : véhicule actuellement au garage suite à un sinistre.
+     * Un seul à la fois (status = at_garage) ; retourne le plus récent.
+     */
+    public function activeIncident(): HasOne
+    {
+        return $this->hasOne(Incident::class)
+                    ->where('status', 'at_garage')
+                    ->latest();
+    }
+
+    /** Toutes les réparations de ce véhicule (préventif + curatif) */
+    public function repairs(): HasMany
+    {
+        return $this->hasMany(Repair::class);
+    }
+
+    /**
+     * Réparation en cours : véhicule actuellement chez un prestataire.
+     * Couvre les statuts actifs de l'atelier (envoyé jusqu'en réparation).
+     */
+    public function currentRepair(): HasOne
+    {
+        return $this->hasOne(Repair::class)
+                    ->whereIn('status', ['sent', 'diagnosing', 'repairing'])
+                    ->latest();
+    }
+
+    /** Historique complet des pièces remplacées sur ce véhicule */
+    public function partsHistory(): HasMany
+    {
+        return $this->hasMany(PartReplacement::class);
+    }
+
+    /**
+     * Pièces actives d'une catégorie donnée montées sur ce véhicule.
+     * Exemple : $vehicle->activeParts('battery') → batteries actuellement en service.
+     *
+     * Note : retourne une instance HasMany (pas une Collection) pour permettre
+     * des appels chaînés (->latest('replaced_at')->first(), ->count()…).
+     */
+    public function activeParts(string $category): HasMany
+    {
+        return $this->hasMany(PartReplacement::class)
+                    ->where('part_category', $category)
+                    ->where('status', 'active');
+    }
+
     // ── Scopes ─────────────────────────────────────────────────────────────
 
     /** Véhicules disponibles à l'affectation */
@@ -155,6 +226,26 @@ class Vehicle extends Model
     public function scopeInMaintenance(Builder $query): Builder
     {
         return $query->where('status', 'maintenance');
+    }
+
+    /**
+     * Véhicules actuellement au garage suite à un sinistre.
+     * Alias sémantique de scopeInMaintenance pour les contextes sinistre.
+     */
+    public function scopeAtGarage(Builder $query): Builder
+    {
+        return $query->where('status', 'maintenance');
+    }
+
+    /**
+     * Véhicules ayant un sinistre en cours (status = at_garage).
+     * Utile pour les tableaux de bord et les filtres de flotte.
+     */
+    public function scopeWithActiveIncident(Builder $query): Builder
+    {
+        return $query->whereHas('incidents', function (Builder $q) {
+            $q->where('status', 'at_garage');
+        });
     }
 
     /** Véhicules encore en service (exclu vendus/retirés) */
@@ -198,6 +289,34 @@ class Vehicle extends Model
         return Attribute::make(
             get: fn() => $this->km_next_service !== null
                       && $this->km_current >= $this->km_next_service,
+        );
+    }
+
+    /**
+     * URL de la photo de profil principale du véhicule.
+     * Retourne le chemin de la photo de profil si elle existe,
+     * sinon l'image placeholder par défaut.
+     */
+    protected function mainPhotoUrl(): Attribute
+    {
+        return Attribute::make(
+            get: fn() => $this->profilePhoto?->file_path ?? 'images/vehicle-placeholder.png',
+        );
+    }
+
+    /**
+     * Batterie actuellement montée sur ce véhicule.
+     * Retourne le PartReplacement le plus récent de catégorie 'battery'
+     * dont le statut est 'active', ou null si aucune batterie enregistrée.
+     */
+    protected function currentBattery(): Attribute
+    {
+        return Attribute::make(
+            get: fn() => $this->partsHistory()
+                ->where('part_category', 'battery')
+                ->where('status', 'active')
+                ->latest('replaced_at')
+                ->first(),
         );
     }
 

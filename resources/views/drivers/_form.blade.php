@@ -168,7 +168,106 @@
     </div>
 </div>
 
-{{-- Section 4 : Photo + véhicule préférentiel ────────────────────────── --}}
+{{-- Section 4 : Documents d'identité ────────────────────────────────── --}}
+<div class="form-card">
+    <div class="form-head">
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="#6366f1" stroke-width="2"/><path d="M14 2v6h6" stroke="#6366f1" stroke-width="2" stroke-linecap="round"/><path d="M16 13H8M16 17H8M10 9H8" stroke="#6366f1" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <span class="form-head-title">Documents d'identité</span>
+        <span style="margin-left:auto;font-size:.73rem;color:#94a3b8;">PDF, JPEG, PNG · max 5 Mo par fichier</span>
+    </div>
+    <div class="form-body" style="display:flex;flex-direction:column;gap:1.25rem;">
+
+        {{-- Permis de conduire (scan) --}}
+        <div>
+            <div style="font-size:.8rem;font-weight:700;color:#374151;margin-bottom:.6rem;display:flex;align-items:center;gap:.4rem;">
+                <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#d97706;"></span>
+                Permis de conduire
+                @if($isEdit)
+                    @php $existingLic = $driver->documents->firstWhere('type','license'); @endphp
+                    @if($existingLic?->file_path)
+                        <a href="{{ Storage::url($existingLic->file_path) }}" target="_blank"
+                           style="margin-left:.5rem;font-size:.72rem;font-weight:600;color:#10b981;text-decoration:none;border:1px solid #bbf7d0;background:#f0fdf4;padding:.1rem .5rem;border-radius:99px;">
+                            Voir fichier actuel ↗
+                        </a>
+                    @endif
+                @endif
+            </div>
+            <div class="form-grid form-grid-2">
+                <div class="form-group">
+                    <label class="form-label">Date de délivrance</label>
+                    <input type="date" name="license_issue_date"
+                           value="{{ old('license_issue_date', isset($existingLic) ? $existingLic->issue_date?->format('Y-m-d') : '') }}"
+                           class="form-input">
+                    @error('license_issue_date')<p class="form-error">{{ $message }}</p>@enderror
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Scan du permis <small style="color:#94a3b8;">(PDF ou image)</small></label>
+                    <label style="display:inline-flex;align-items:center;gap:.5rem;padding:.5rem .9rem;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:.45rem;cursor:pointer;font-size:.82rem;font-weight:600;color:#374151;width:fit-content;">
+                        <svg width="13" height="13" fill="none" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                        <span id="license-file-label">Choisir un fichier</span>
+                        <input type="file" name="license_file" accept=".pdf,image/jpeg,image/png"
+                               style="display:none;" onchange="updateFileLabel(this,'license-file-label')">
+                    </label>
+                    @error('license_file')<p class="form-error">{{ $message }}</p>@enderror
+                </div>
+            </div>
+        </div>
+
+        <hr style="border:none;border-top:1px solid #f1f5f9;margin:0;">
+
+        {{-- CNI --}}
+        <div>
+            <div style="font-size:.8rem;font-weight:700;color:#374151;margin-bottom:.6rem;display:flex;align-items:center;gap:.4rem;">
+                <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#6366f1;"></span>
+                Carte Nationale d'Identité (CNI)
+                @if($isEdit)
+                    @php $existingCni = $driver->documents->firstWhere('type','national_id'); @endphp
+                    @if($existingCni?->file_path)
+                        <a href="{{ Storage::url($existingCni->file_path) }}" target="_blank"
+                           style="margin-left:.5rem;font-size:.72rem;font-weight:600;color:#10b981;text-decoration:none;border:1px solid #bbf7d0;background:#f0fdf4;padding:.1rem .5rem;border-radius:99px;">
+                            Voir fichier actuel ↗
+                        </a>
+                    @endif
+                @endif
+            </div>
+            <div class="form-grid form-grid-3">
+                <div class="form-group">
+                    <label class="form-label">Numéro CNI</label>
+                    <input type="text" name="national_id_number"
+                           value="{{ old('national_id_number', isset($existingCni) ? $existingCni->document_number : '') }}"
+                           class="form-input" style="font-family:monospace;" placeholder="Ex : CI-0000-0000000">
+                    @error('national_id_number')<p class="form-error">{{ $message }}</p>@enderror
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Date de délivrance</label>
+                    <input type="date" name="national_id_issue_date"
+                           value="{{ old('national_id_issue_date', isset($existingCni) ? $existingCni->issue_date?->format('Y-m-d') : '') }}"
+                           class="form-input">
+                    @error('national_id_issue_date')<p class="form-error">{{ $message }}</p>@enderror
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Date d'expiration</label>
+                    <input type="date" name="national_id_expiry_date"
+                           value="{{ old('national_id_expiry_date', isset($existingCni) ? $existingCni->expiry_date?->format('Y-m-d') : '') }}"
+                           class="form-input">
+                    @error('national_id_expiry_date')<p class="form-error">{{ $message }}</p>@enderror
+                </div>
+            </div>
+            <div class="form-group" style="margin-top:.75rem;">
+                <label class="form-label">Scan CNI <small style="color:#94a3b8;">(recto/verso en un fichier PDF ou image)</small></label>
+                <label style="display:inline-flex;align-items:center;gap:.5rem;padding:.5rem .9rem;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:.45rem;cursor:pointer;font-size:.82rem;font-weight:600;color:#374151;width:fit-content;">
+                    <svg width="13" height="13" fill="none" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    <span id="cni-file-label">Choisir un fichier</span>
+                    <input type="file" name="national_id_file" accept=".pdf,image/jpeg,image/png"
+                           style="display:none;" onchange="updateFileLabel(this,'cni-file-label')">
+                </label>
+                @error('national_id_file')<p class="form-error">{{ $message }}</p>@enderror
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- Section 6 : Photo + véhicule préférentiel ────────────────────────── --}}
 <div class="form-card">
     <div class="form-head">
         <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" stroke="#ec4899" stroke-width="2"/><circle cx="8.5" cy="8.5" r="1.5" fill="#ec4899"/><path d="M21 15l-5-5L5 21" stroke="#ec4899" stroke-width="2" stroke-linecap="round"/></svg>
@@ -215,7 +314,7 @@
     </div>
 </div>
 
-{{-- Section 5 : Statut (uniquement en modification) ──────────────────── --}}
+{{-- Section 7 : Statut (uniquement en modification) ──────────────────── --}}
 @if($isEdit)
 <div class="form-card">
     <div class="form-head">
@@ -272,6 +371,12 @@ function toggleSuspensionReason() {
 </div>
 
 <script>
+function updateFileLabel(input, labelId) {
+    const label = document.getElementById(labelId);
+    if (label && input.files && input.files[0]) {
+        label.textContent = input.files[0].name;
+    }
+}
 function previewDriverAvatar(input) {
     if (!input.files || !input.files[0]) return;
     const reader = new FileReader();

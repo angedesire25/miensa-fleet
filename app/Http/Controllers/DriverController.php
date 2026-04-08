@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Driver;
+use App\Models\DriverDocument;
 use App\Models\Vehicle;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -72,7 +73,8 @@ class DriverController extends Controller
             'documents',
             'activeAssignment.vehicle',
             'assignments' => fn($q) => $q->with('vehicle')->latest('datetime_start')->limit(10),
-            'infractions'  => fn($q) => $q->latest()->limit(5),
+            'infractions'  => fn($q) => $q->with('vehicle')->latest()->limit(10),
+            'incidents'    => fn($q) => $q->with('vehicle')->latest('datetime_occurred')->limit(10),
         ]);
 
         return view('drivers.show', compact('driver'));
@@ -98,7 +100,6 @@ class DriverController extends Controller
             'hire_date'                => 'nullable|date',
             'contract_type'            => 'required|in:permanent,fixed_term,interim,contractor',
             'contract_end_date'        => 'nullable|date|after:hire_date',
-            // Permis : optionnel à la création (profil auto-créé) — à compléter ultérieurement
             'license_number'           => 'nullable|string|max:50|unique:drivers,license_number',
             'license_categories'       => 'nullable|array',
             'license_categories.*'     => 'in:A,B,C,D,E,BE,CE',
@@ -107,17 +108,60 @@ class DriverController extends Controller
             'preferred_vehicle_id'     => 'nullable|exists:vehicles,id',
             'notes'                    => 'nullable|string|max:2000',
             'avatar'                   => 'nullable|image|mimes:jpeg,jpg,png,webp|max:3072',
+            // Documents d'identité
+            'license_file'             => 'nullable|file|mimes:pdf,jpeg,jpg,png|max:5120',
+            'license_issue_date'       => 'nullable|date',
+            'national_id_number'       => 'nullable|string|max:50',
+            'national_id_issue_date'   => 'nullable|date',
+            'national_id_expiry_date'  => 'nullable|date',
+            'national_id_file'         => 'nullable|file|mimes:pdf,jpeg,jpg,png|max:5120',
         ]);
 
         $data['created_by'] = Auth::id();
         $data['status']     = 'active';
-        unset($data['avatar']);
+        unset($data['avatar'], $data['license_file'], $data['license_issue_date'],
+              $data['national_id_number'], $data['national_id_issue_date'],
+              $data['national_id_expiry_date'], $data['national_id_file']);
 
         $driver = Driver::create($data);
 
         if ($request->hasFile('avatar')) {
             $path = $request->file('avatar')->store("drivers/{$driver->id}/avatar", 'public');
             $driver->update(['avatar' => $path]);
+        }
+
+        // Scan du permis de conduire
+        if ($request->hasFile('license_file') || $request->filled('license_issue_date')) {
+            $licPath = $request->hasFile('license_file')
+                ? $request->file('license_file')->store("drivers/{$driver->id}/documents", 'public')
+                : null;
+            DriverDocument::create([
+                'driver_id'       => $driver->id,
+                'type'            => 'license',
+                'document_number' => $driver->license_number,
+                'issue_date'      => $request->license_issue_date ?: null,
+                'expiry_date'     => $driver->license_expiry_date?->format('Y-m-d'),
+                'file_path'       => $licPath,
+                'status'          => 'valid',
+                'created_by'      => Auth::id(),
+            ]);
+        }
+
+        // CNI
+        if ($request->hasFile('national_id_file') || $request->filled('national_id_number')) {
+            $cniPath = $request->hasFile('national_id_file')
+                ? $request->file('national_id_file')->store("drivers/{$driver->id}/documents", 'public')
+                : null;
+            DriverDocument::create([
+                'driver_id'       => $driver->id,
+                'type'            => 'national_id',
+                'document_number' => $request->national_id_number ?: null,
+                'issue_date'      => $request->national_id_issue_date ?: null,
+                'expiry_date'     => $request->national_id_expiry_date ?: null,
+                'file_path'       => $cniPath,
+                'status'          => 'valid',
+                'created_by'      => Auth::id(),
+            ]);
         }
 
         return redirect()->route('drivers.show', $driver)
@@ -144,7 +188,6 @@ class DriverController extends Controller
             'hire_date'                => 'nullable|date',
             'contract_type'            => 'required|in:permanent,fixed_term,interim,contractor',
             'contract_end_date'        => 'nullable|date',
-            // Permis : optionnel (peut être complété après la création du profil auto)
             'license_number'           => ['nullable', 'string', 'max:50', Rule::unique('drivers', 'license_number')->ignore($driver->id)],
             'license_categories'       => 'nullable|array',
             'license_categories.*'     => 'in:A,B,C,D,E,BE,CE',
@@ -155,9 +198,18 @@ class DriverController extends Controller
             'suspension_reason'        => 'nullable|string|max:255',
             'notes'                    => 'nullable|string|max:2000',
             'avatar'                   => 'nullable|image|mimes:jpeg,jpg,png,webp|max:3072',
+            // Documents d'identité
+            'license_file'             => 'nullable|file|mimes:pdf,jpeg,jpg,png|max:5120',
+            'license_issue_date'       => 'nullable|date',
+            'national_id_number'       => 'nullable|string|max:50',
+            'national_id_issue_date'   => 'nullable|date',
+            'national_id_expiry_date'  => 'nullable|date',
+            'national_id_file'         => 'nullable|file|mimes:pdf,jpeg,jpg,png|max:5120',
         ]);
 
-        unset($data['avatar']);
+        unset($data['avatar'], $data['license_file'], $data['license_issue_date'],
+              $data['national_id_number'], $data['national_id_issue_date'],
+              $data['national_id_expiry_date'], $data['national_id_file']);
         $driver->update($data);
 
         if ($request->hasFile('avatar')) {
@@ -166,6 +218,52 @@ class DriverController extends Controller
             }
             $path = $request->file('avatar')->store("drivers/{$driver->id}/avatar", 'public');
             $driver->update(['avatar' => $path]);
+        }
+
+        // Mise à jour / création du document permis
+        if ($request->hasFile('license_file') || $request->filled('license_issue_date')) {
+            $licDoc = $driver->documents()->where('type', 'license')->first();
+            $licPath = $licDoc?->file_path;
+            if ($request->hasFile('license_file')) {
+                if ($licPath) Storage::disk('public')->delete($licPath);
+                $licPath = $request->file('license_file')->store("drivers/{$driver->id}/documents", 'public');
+            }
+            $docData = [
+                'document_number' => $driver->license_number,
+                'issue_date'      => $request->license_issue_date ?: ($licDoc?->issue_date?->format('Y-m-d')),
+                'expiry_date'     => $driver->license_expiry_date?->format('Y-m-d'),
+                'file_path'       => $licPath,
+                'status'          => 'valid',
+                'created_by'      => Auth::id(),
+            ];
+            if ($licDoc) {
+                $licDoc->update($docData);
+            } else {
+                $driver->documents()->create(['type' => 'license'] + $docData);
+            }
+        }
+
+        // Mise à jour / création du document CNI
+        if ($request->hasFile('national_id_file') || $request->filled('national_id_number')) {
+            $cniDoc  = $driver->documents()->where('type', 'national_id')->first();
+            $cniPath = $cniDoc?->file_path;
+            if ($request->hasFile('national_id_file')) {
+                if ($cniPath) Storage::disk('public')->delete($cniPath);
+                $cniPath = $request->file('national_id_file')->store("drivers/{$driver->id}/documents", 'public');
+            }
+            $cniData = [
+                'document_number' => $request->national_id_number ?: ($cniDoc?->document_number),
+                'issue_date'      => $request->national_id_issue_date ?: ($cniDoc?->issue_date?->format('Y-m-d')),
+                'expiry_date'     => $request->national_id_expiry_date ?: ($cniDoc?->expiry_date?->format('Y-m-d')),
+                'file_path'       => $cniPath,
+                'status'          => 'valid',
+                'created_by'      => Auth::id(),
+            ];
+            if ($cniDoc) {
+                $cniDoc->update($cniData);
+            } else {
+                $driver->documents()->create(['type' => 'national_id'] + $cniData);
+            }
         }
 
         return redirect()->route('drivers.show', $driver)
@@ -204,5 +302,37 @@ class DriverController extends Controller
         $driver->restore();
         return redirect()->route('drivers.show', $driver)
                          ->with('swal_success', 'Chauffeur restauré.');
+    }
+
+    /**
+     * Suppression définitive (irréversible) — réservée aux admins.
+     * Les données historiques (affectations, infractions, fiches…) sont conservées
+     * avec les FK mises à NULL (SET NULL en base). Seuls les documents du profil
+     * sont supprimés. Le compte utilisateur lié est archivé (soft delete).
+     */
+    public function forceDestroy(int $id): RedirectResponse
+    {
+        $driver = Driver::withTrashed()->findOrFail($id);
+        $name   = $driver->full_name;
+
+        // Supprimer les documents du profil (fichiers + enregistrements)
+        foreach ($driver->documents()->get() as $doc) {
+            if ($doc->file_path) Storage::disk('public')->delete($doc->file_path);
+        }
+        $driver->documents()->delete();
+
+        // Archiver le compte utilisateur lié pour qu'il n'apparaisse plus dans les listes
+        $linkedUser = \App\Models\User::where('driver_id', $driver->id)->first();
+        if ($linkedUser && ! $linkedUser->trashed()) {
+            $linkedUser->update(['driver_id' => null]);
+            $linkedUser->delete(); // soft delete
+        } elseif ($linkedUser) {
+            $linkedUser->update(['driver_id' => null]);
+        }
+
+        $driver->forceDelete();
+
+        return redirect()->route('drivers.index')
+                         ->with('swal_success', "Chauffeur « {$name} » supprimé définitivement. Le compte utilisateur associé a été archivé.");
     }
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Driver;
 use App\Models\Inspection;
 use App\Models\Vehicle;
+use App\Notifications\InspectionRejectedNotification;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -115,6 +116,12 @@ class InspectionController extends Controller
         $data['inspector_id'] = Auth::id();
         $data['status']       = $request->input('action') === 'draft' ? 'draft' : 'submitted';
 
+        // Sécurité : un driver_user ne peut pas choisir un autre chauffeur.
+        // On force son propre profil chauffeur, quoi que contienne la requête.
+        if (Auth::user()->hasAnyRole(['driver_user', 'collaborator'])) {
+            $data['driver_id'] = Auth::user()->driver_id;
+        }
+
         // Gestion des photos carrosserie uploadées
         $data['body_photos'] = $this->handlePhotoUploads($request, null);
 
@@ -159,6 +166,11 @@ class InspectionController extends Controller
         $data = $this->validateInspection($request, $inspection);
         $data['status'] = $request->input('action') === 'draft' ? 'draft' : 'submitted';
 
+        // Sécurité : un driver_user ne peut pas modifier le chauffeur associé.
+        if (Auth::user()->hasAnyRole(['driver_user', 'collaborator'])) {
+            $data['driver_id'] = $inspection->driver_id; // conserver la valeur d'origine
+        }
+
         // Gestion photos : garder les existantes + ajouter les nouvelles
         $data['body_photos'] = $this->handlePhotoUploads($request, $inspection);
 
@@ -198,6 +210,14 @@ class InspectionController extends Controller
             'validated_by'     => null,
             'validated_at'     => null,
         ]);
+
+        // Notifier l'auteur de la fiche (inspector) qu'elle est renvoyée pour correction
+        $inspection->load('inspector', 'vehicle');
+        if ($inspection->inspector) {
+            $inspection->inspector->notify(
+                new InspectionRejectedNotification($inspection, $request->rejection_reason)
+            );
+        }
 
         return back()->with('swal_warning', 'Fiche renvoyée pour correction.');
     }
@@ -247,7 +267,13 @@ class InspectionController extends Controller
 
     public function destroy(Inspection $inspection): RedirectResponse
     {
-        abort_if($inspection->status === 'validated', 403, 'Impossible de supprimer une fiche validée.');
+        $isAdmin = Auth::user()->hasAnyRole(['super_admin', 'admin']);
+
+        // Les non-admins ne peuvent supprimer que les fiches non validées qui leur appartiennent
+        if (!$isAdmin) {
+            abort_if($inspection->status === 'validated', 403, 'Impossible de supprimer une fiche validée.');
+            $this->abortIfNotOwner($inspection);
+        }
 
         // Supprimer les photos associées du stockage
         foreach ($inspection->body_photos ?? [] as $photo) {
@@ -259,7 +285,7 @@ class InspectionController extends Controller
         $inspection->delete();
 
         return redirect()->route('inspections.index')
-            ->with('swal_success', 'Fiche supprimée.');
+            ->with('swal_success', 'Fiche #' . $inspection->id . ' supprimée.');
     }
 
     // ── Gestion des photos (upload) ────────────────────────────────────────
@@ -337,6 +363,9 @@ class InspectionController extends Controller
             'registration_present'      => 'boolean',
             'oil_change_status'         => 'nullable|in:ok,due_soon,overdue',
             'oil_change_date'           => 'nullable|date',
+            'oil_change_km'             => 'nullable|integer|min:0',
+            'oil_change_next_date'      => 'nullable|date',
+            'oil_change_next_km'        => 'nullable|integer|min:0',
             'body_notes'                => 'nullable|string|max:1000',
             // Photos carrosserie : tableaux de fichiers image (max 5 Mo chacune, 10 max)
             'body_photos_upload'        => 'nullable|array|max:10',

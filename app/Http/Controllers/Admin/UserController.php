@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\VehicleRequest;
 use App\Services\DriverProfileService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -240,6 +241,40 @@ class UserController extends Controller
 
         return redirect()->route('admin.users.index')
                          ->with('swal_success', "Compte de {$name} archivé.");
+    }
+
+    /**
+     * Suppression définitive (irréversible) — réservée aux admins.
+     * Les données historiques (fiches, demandes…) sont conservées avec les FK mises
+     * à NULL (SET NULL en base). Le profil chauffeur lié est archivé.
+     * Un admin ne peut pas supprimer un super_admin.
+     */
+    public function forceDestroy(int $id): RedirectResponse
+    {
+        $user = User::withTrashed()->findOrFail($id);
+
+        if ($user->id === auth()->id()) {
+            return back()->with('swal_error', 'Vous ne pouvez pas supprimer votre propre compte.');
+        }
+
+        if ($user->hasRole('super_admin') && ! auth()->user()->hasRole('super_admin')) {
+            return back()->with('swal_error', 'Seul un super administrateur peut supprimer ce type de compte.');
+        }
+
+        $name = $user->name;
+
+        // Archiver le profil chauffeur lié s'il existe
+        if ($user->driver_id) {
+            \App\Models\Driver::withTrashed()->where('id', $user->driver_id)->first()?->delete();
+        }
+
+        // Supprimer les notifications
+        $user->notifications()->delete();
+
+        $user->forceDelete();
+
+        return redirect()->route('admin.users.index')
+                         ->with('swal_success', "Compte « {$name} » supprimé définitivement.");
     }
 
     /**

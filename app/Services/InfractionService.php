@@ -65,7 +65,7 @@ class InfractionService
 
         // ── 2. Cherche dans les demandes de véhicule ────────────────────────
         $request = VehicleRequest::where('vehicle_id', $vehicleId)
-            ->whereIn('status', ['in_progress', 'completed'])
+            ->whereIn('status', ['approved', 'confirmed', 'in_progress', 'completed'])
             ->where('datetime_start', '<=', $datetime)
             ->where(function (Builder $q) use ($datetime) {
                 $q->where(function (Builder $inner) use ($datetime) {

@@ -179,7 +179,7 @@ class Infraction extends Model
 
         // 2. Cherche une demande de véhicule active au moment de l'infraction
         $request = VehicleRequest::where('vehicle_id', $this->vehicle_id)
-            ->whereIn('status', ['in_progress', 'completed'])
+            ->whereIn('status', ['approved', 'confirmed', 'in_progress', 'completed'])
             ->where('datetime_start', '<=', $occurred)
             ->where(function (Builder $q) use ($occurred) {
                 $q->where(function (Builder $inner) use ($occurred) {

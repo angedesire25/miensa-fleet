@@ -152,15 +152,37 @@
                         Archiver
                     </button>
                 </form>
+
+                <form method="POST" action="{{ route('admin.users.force-destroy', $user->id) }}"
+                      data-confirm="Cette suppression est IRRÉVERSIBLE. Le compte et toutes ses données seront effacés définitivement."
+                      data-title="Supprimer {{ $user->name }} définitivement ?"
+                      data-btn-text="Supprimer définitivement" data-btn-color="#dc2626" data-icon="warning">
+                    @csrf @method('DELETE')
+                    <button type="submit" style="width:100%;justify-content:center;display:inline-flex;align-items:center;gap:.4rem;padding:.5rem 1rem;background:#7f1d1d;color:#fca5a5;border:1.5px solid #dc2626;border-radius:.45rem;font-size:.8rem;font-weight:700;cursor:pointer;">
+                        <svg width="12" height="12" fill="none" viewBox="0 0 24 24"><polyline points="3,6 5,6 21,6" stroke="currentColor" stroke-width="2"/><path d="M19 6l-1 14H6L5 6M10 11v6M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                        Supprimer définitivement
+                    </button>
+                </form>
                 @endif
             </div>
             @else
-            <div style="padding:1rem 1.25rem;border-top:1px solid #f1f5f9;">
+            <div style="padding:1rem 1.25rem;border-top:1px solid #f1f5f9;display:flex;flex-direction:column;gap:.5rem;">
                 <form method="POST" action="{{ route('admin.users.restore', $user->id) }}">
                     @csrf
                     <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">
                         <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M3 12a9 9 0 109-9 9 9 0 00-6.3 2.6L3 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M3 3v5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
                         Restaurer le compte
+                    </button>
+                </form>
+
+                <form method="POST" action="{{ route('admin.users.force-destroy', $user->id) }}"
+                      data-confirm="Cette suppression est IRRÉVERSIBLE. Le compte et toutes ses données seront effacés définitivement."
+                      data-title="Supprimer {{ $user->name }} définitivement ?"
+                      data-btn-text="Supprimer définitivement" data-btn-color="#dc2626" data-icon="warning">
+                    @csrf @method('DELETE')
+                    <button type="submit" style="width:100%;justify-content:center;display:inline-flex;align-items:center;gap:.4rem;padding:.5rem 1rem;background:#7f1d1d;color:#fca5a5;border:1.5px solid #dc2626;border-radius:.45rem;font-size:.8rem;font-weight:700;cursor:pointer;">
+                        <svg width="12" height="12" fill="none" viewBox="0 0 24 24"><polyline points="3,6 5,6 21,6" stroke="currentColor" stroke-width="2"/><path d="M19 6l-1 14H6L5 6M10 11v6M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                        Supprimer définitivement
                     </button>
                 </form>
             </div>

@@ -193,6 +193,23 @@ $fuelColor = $inspection->fuel_level_pct >= 50 ? '#10b981' : ($inspection->fuel_
         @endcan
         @endif
 
+        @if(auth()->user()->hasAnyRole(['super_admin', 'admin']))
+        <div class="card">
+            <div class="card-body" style="padding:.85rem 1.25rem;">
+                <form method="POST" action="{{ route('inspections.destroy', $inspection) }}"
+                      data-confirm="Supprimer définitivement la fiche #{{ $inspection->id }} ?"
+                      data-title="Supprimer cette fiche ?"
+                      data-btn-text="Supprimer" data-btn-color="#dc2626" data-icon="warning">
+                    @csrf @method('DELETE')
+                    <button type="submit" style="width:100%;justify-content:center;display:inline-flex;align-items:center;gap:.4rem;padding:.5rem 1rem;background:#fef2f2;color:#dc2626;border:1.5px solid #fecaca;border-radius:.45rem;font-size:.8rem;font-weight:600;cursor:pointer;">
+                        <svg width="12" height="12" fill="none" viewBox="0 0 24 24"><polyline points="3,6 5,6 21,6" stroke="currentColor" stroke-width="2"/><path d="M19 6l-1 14H6L5 6M10 11v6M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                        Supprimer la fiche
+                    </button>
+                </form>
+            </div>
+        </div>
+        @endif
+
         @if($inspection->isValidated())
         <div style="padding:.65rem 1rem;background:#f0fdf4;border:1px solid #86efac;border-radius:.65rem;font-size:.8rem;color:#166534;text-align:center;margin-bottom:.6rem;">
             ✓ Fiche validée par <strong>{{ $inspection->validatedBy?->name }}</strong><br>
@@ -308,6 +325,49 @@ $fuelColor = $inspection->fuel_level_pct >= 50 ? '#10b981' : ($inspection->fuel_
                     @endif
                 </div>
                 @endforeach
+
+                {{-- Détail des dates et km de vidange --}}
+                @if($inspection->oil_change_date || $inspection->oil_change_next_date)
+                @php
+                    $nextDate   = $inspection->oil_change_next_date;
+                    $daysToNext = $nextDate ? (int) now()->startOfDay()->diffInDays($nextDate->startOfDay(), false) : null;
+                    $nextColor  = match(true) {
+                        $daysToNext === null   => '#64748b',
+                        $daysToNext < 0        => '#dc2626',
+                        $daysToNext <= 7       => '#dc2626',
+                        $daysToNext <= 15      => '#d97706',
+                        default                => '#16a34a',
+                    };
+                @endphp
+                <div style="margin-top:.65rem;padding-top:.65rem;border-top:1px dashed #e2e8f0;display:grid;grid-template-columns:1fr 1fr;gap:.5rem;">
+                    <div style="background:#f8fafc;border-radius:.4rem;padding:.5rem .7rem;">
+                        <div style="font-size:.68rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.2rem;">Dernière vidange</div>
+                        <div style="font-size:.85rem;font-weight:600;color:#0f172a;">
+                            {{ $inspection->oil_change_date?->format('d/m/Y') ?? '—' }}
+                        </div>
+                        @if($inspection->oil_change_km)
+                        <div style="font-size:.75rem;color:#64748b;">{{ number_format($inspection->oil_change_km, 0, ',', ' ') }} km</div>
+                        @endif
+                    </div>
+                    <div style="background:#f8fafc;border-radius:.4rem;padding:.5rem .7rem;border-left:3px solid {{ $nextColor }};">
+                        <div style="font-size:.68rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.2rem;">Prochaine vidange</div>
+                        <div style="font-size:.85rem;font-weight:700;color:{{ $nextColor }};">
+                            {{ $nextDate?->format('d/m/Y') ?? '—' }}
+                        </div>
+                        @if($daysToNext !== null)
+                        <div style="font-size:.75rem;color:{{ $nextColor }};">
+                            @if($daysToNext < 0) Dépassée de {{ abs($daysToNext) }}j
+                            @elseif($daysToNext === 0) Aujourd'hui
+                            @else Dans {{ $daysToNext }}j
+                            @endif
+                        </div>
+                        @endif
+                        @if($inspection->oil_change_next_km)
+                        <div style="font-size:.75rem;color:#64748b;">Seuil : {{ number_format($inspection->oil_change_next_km, 0, ',', ' ') }} km</div>
+                        @endif
+                    </div>
+                </div>
+                @endif
             </div>
         </div>
 

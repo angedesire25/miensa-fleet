@@ -18,7 +18,20 @@
       "Bash(npm run:*)",
       "Bash(npm install:*)",
       "Bash(\"/c/laragon/bin/mysql/mysql-8.4.3-winx64/bin/mysqld\" --standalone)",
-      "Bash(php -r \"require 'vendor/autoload.php';\")"
+      "Bash(php -r \"require 'vendor/autoload.php';\")",
+      "Bash(php -r \"echo PHP_VERSION;\")",
+      "Bash(grep -n \"type\\\\|severity\\\\|status\" c:/laragon/www/miensa-fleet/database/migrations/*incident*)",
+      "Bash(grep -n \"type\\\\|payment_status\\\\|imputation\" c:/laragon/www/miensa-fleet/database/migrations/*infraction*)",
+      "Bash(sed -n '58,105p' c:/laragon/www/miensa-fleet/database/migrations/2026_04_03_231128_create_infractions_table.php)",
+      "Bash(grep -A3 \"enum\\('type\\\\|enum\\('payment_status\\\\|enum\\('imputation\" c:/laragon/www/miensa-fleet/database/migrations/*infraction*.php)",
+      "Bash(php -r 'require '\\\\''vendor/autoload.php'\\\\''; $app = require '\\\\''bootstrap/app.php'\\\\'';')",
+      "Bash(grep -v \"^$\")",
+      "Bash(grep -n \"enum\\\\|status\" c:/laragon/www/miensa-fleet/database/migrations/*vehicle_request*.php)",
+      "Bash(grep -n \"enum\\\\|repair_type\" c:/laragon/www/miensa-fleet/database/migrations/*repair*.php)",
+      "Bash(php -r \"echo date\\('Y_m_d_His'\\);\")"
+    ],
+    "additionalDirectories": [
+      "c:\\laragon\\www\\miensa-fleet\\resources\\views"
     ]
   }
 }

@@ -128,9 +128,22 @@ $s = $statusMap[$vehicle->status] ?? ['Inconnu','#64748b','#f8fafc'];
                     </button>
                 </form>
                 @endcan
+
+                @if(auth()->user()->hasAnyRole(['super_admin', 'admin']))
+                <form method="POST" action="{{ route('vehicles.force-destroy', $vehicle->id) }}"
+                      data-confirm="Cette suppression est IRRÉVERSIBLE. Toutes les données et fichiers seront effacés définitivement."
+                      data-title="Supprimer {{ $vehicle->plate }} définitivement ?"
+                      data-btn-text="Supprimer définitivement" data-btn-color="#dc2626" data-icon="warning">
+                    @csrf @method('DELETE')
+                    <button type="submit" style="width:100%;justify-content:center;display:inline-flex;align-items:center;gap:.4rem;padding:.5rem 1rem;background:#7f1d1d;color:#fca5a5;border:1.5px solid #dc2626;border-radius:.45rem;font-size:.8rem;font-weight:700;cursor:pointer;">
+                        <svg width="12" height="12" fill="none" viewBox="0 0 24 24"><polyline points="3,6 5,6 21,6" stroke="currentColor" stroke-width="2"/><path d="M19 6l-1 14H6L5 6M10 11v6M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                        Supprimer définitivement
+                    </button>
+                </form>
+                @endif
             </div>
             @else
-            <div style="padding:1rem 1.25rem;border-top:1px solid #f1f5f9;">
+            <div style="padding:1rem 1.25rem;border-top:1px solid #f1f5f9;display:flex;flex-direction:column;gap:.5rem;">
                 @can('vehicles.delete')
                 <form method="POST" action="{{ route('vehicles.restore', $vehicle->id) }}">
                     @csrf
@@ -140,6 +153,19 @@ $s = $statusMap[$vehicle->status] ?? ['Inconnu','#64748b','#f8fafc'];
                     </button>
                 </form>
                 @endcan
+
+                @if(auth()->user()->hasAnyRole(['super_admin', 'admin']))
+                <form method="POST" action="{{ route('vehicles.force-destroy', $vehicle->id) }}"
+                      data-confirm="Cette suppression est IRRÉVERSIBLE. Toutes les données et fichiers seront effacés définitivement."
+                      data-title="Supprimer {{ $vehicle->plate }} définitivement ?"
+                      data-btn-text="Supprimer définitivement" data-btn-color="#dc2626" data-icon="warning">
+                    @csrf @method('DELETE')
+                    <button type="submit" style="width:100%;justify-content:center;display:inline-flex;align-items:center;gap:.4rem;padding:.5rem 1rem;background:#7f1d1d;color:#fca5a5;border:1.5px solid #dc2626;border-radius:.45rem;font-size:.8rem;font-weight:700;cursor:pointer;">
+                        <svg width="12" height="12" fill="none" viewBox="0 0 24 24"><polyline points="3,6 5,6 21,6" stroke="currentColor" stroke-width="2"/><path d="M19 6l-1 14H6L5 6M10 11v6M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                        Supprimer définitivement
+                    </button>
+                </form>
+                @endif
             </div>
             @endif
         </div>
@@ -235,23 +261,117 @@ $s = $statusMap[$vehicle->status] ?? ['Inconnu','#64748b','#f8fafc'];
                 <div style="display:flex;align-items:center;gap:.6rem;">
                     <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="#d97706" stroke-width="2"/><path d="M14 2v6h6" stroke="#d97706" stroke-width="2" stroke-linecap="round"/></svg>
                     <span class="card-title">Documents administratifs</span>
+                    <span style="font-size:.75rem;color:#94a3b8;">{{ $vehicle->documents->count() }} doc(s)</span>
                 </div>
-                <span style="font-size:.75rem;color:#94a3b8;">{{ $vehicle->documents->count() }} document(s)</span>
+                @can('vehicles.edit')
+                @if(!$vehicle->trashed())
+                <button type="button" onclick="document.getElementById('doc-add-form').classList.toggle('hidden')"
+                        style="display:inline-flex;align-items:center;gap:.3rem;padding:.3rem .75rem;background:#fffbeb;color:#92400e;border:1.5px solid #fde68a;border-radius:.4rem;font-size:.78rem;font-weight:600;cursor:pointer;">
+                    <svg width="11" height="11" fill="none" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+                    Ajouter
+                </button>
+                @endif
+                @endcan
             </div>
+
+            {{-- Formulaire ajout document (masqué par défaut) --}}
+            @can('vehicles.edit')
+            @if(!$vehicle->trashed())
+            <div id="doc-add-form" class="hidden" style="padding:1rem 1.25rem;border-bottom:1px solid #f1f5f9;background:#fafafa;">
+                <form method="POST" action="{{ route('vehicle-documents.store', $vehicle) }}" enctype="multipart/form-data">
+                    @csrf
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.75rem;margin-bottom:.75rem;">
+                        <div>
+                            <label style="font-size:.75rem;font-weight:600;color:#64748b;display:block;margin-bottom:.25rem;">Type <span style="color:#ef4444;">*</span></label>
+                            <select name="type" required style="width:100%;padding:.45rem .6rem;border:1.5px solid #e2e8f0;border-radius:.4rem;font-size:.82rem;color:#0f172a;background:#fff;">
+                                <option value="">— Choisir —</option>
+                                @foreach(['insurance'=>'Assurance','technical_control'=>'Visite technique','registration'=>'Carte grise','transport_permit'=>'Autorisation transport','other'=>'Autre'] as $v=>$l)
+                                <option value="{{ $v }}">{{ $l }}</option>
+                                @endforeach
+                            </select>
+                            @error('type')<p style="color:#ef4444;font-size:.72rem;margin:.15rem 0 0;">{{ $message }}</p>@enderror
+                        </div>
+                        <div>
+                            <label style="font-size:.75rem;font-weight:600;color:#64748b;display:block;margin-bottom:.25rem;">N° référence</label>
+                            <input type="text" name="document_number" placeholder="Ex : POL-2024-XXX"
+                                   style="width:100%;padding:.45rem .6rem;border:1.5px solid #e2e8f0;border-radius:.4rem;font-size:.82rem;font-family:monospace;box-sizing:border-box;">
+                        </div>
+                        <div>
+                            <label style="font-size:.75rem;font-weight:600;color:#64748b;display:block;margin-bottom:.25rem;">Autorité de délivrance</label>
+                            <input type="text" name="issuing_authority" placeholder="Préfecture, compagnie…"
+                                   style="width:100%;padding:.45rem .6rem;border:1.5px solid #e2e8f0;border-radius:.4rem;font-size:.82rem;box-sizing:border-box;">
+                        </div>
+                        <div>
+                            <label style="font-size:.75rem;font-weight:600;color:#64748b;display:block;margin-bottom:.25rem;">Date de délivrance</label>
+                            <input type="date" name="issue_date"
+                                   style="width:100%;padding:.45rem .6rem;border:1.5px solid #e2e8f0;border-radius:.4rem;font-size:.82rem;box-sizing:border-box;">
+                        </div>
+                        <div>
+                            <label style="font-size:.75rem;font-weight:600;color:#64748b;display:block;margin-bottom:.25rem;">Date d'expiration</label>
+                            <input type="date" name="expiry_date"
+                                   style="width:100%;padding:.45rem .6rem;border:1.5px solid #e2e8f0;border-radius:.4rem;font-size:.82rem;box-sizing:border-box;">
+                        </div>
+                        <div>
+                            <label style="font-size:.75rem;font-weight:600;color:#64748b;display:block;margin-bottom:.25rem;">Fichier <small style="color:#94a3b8;">(PDF/image)</small></label>
+                            <label style="display:inline-flex;align-items:center;gap:.4rem;padding:.4rem .7rem;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:.4rem;cursor:pointer;font-size:.78rem;font-weight:600;color:#374151;">
+                                <svg width="12" height="12" fill="none" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                                <span id="doc-file-lbl">Choisir</span>
+                                <input type="file" name="file" accept=".pdf,image/jpeg,image/png" style="display:none;"
+                                       onchange="document.getElementById('doc-file-lbl').textContent=this.files[0]?.name||'Choisir'">
+                            </label>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:.5rem;justify-content:flex-end;">
+                        <button type="button" onclick="document.getElementById('doc-add-form').classList.add('hidden')"
+                                style="padding:.4rem .85rem;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:.4rem;font-size:.8rem;font-weight:600;color:#64748b;cursor:pointer;">
+                            Annuler
+                        </button>
+                        <button type="submit"
+                                style="padding:.4rem .85rem;background:linear-gradient(135deg,#d97706,#b45309);color:#fff;border:none;border-radius:.4rem;font-size:.8rem;font-weight:600;cursor:pointer;">
+                            Enregistrer le document
+                        </button>
+                    </div>
+                </form>
+            </div>
+            @endif
+            @endcan
+
             <div class="table-mini">
                 @if($vehicle->documents->isEmpty())
                     <p style="text-align:center;padding:1.25rem;color:#94a3b8;font-size:.82rem;">Aucun document enregistré.</p>
                 @else
                 <table>
-                    <thead><tr><th>Type</th><th>Référence</th><th>Expiration</th><th>Statut</th></tr></thead>
+                    <thead><tr><th>Type</th><th>Référence</th><th>Délivrance</th><th>Expiration</th><th>Statut</th><th></th></tr></thead>
                     <tbody>
                     @foreach($vehicle->documents as $doc)
                     @php $ds = $docStatusMap[$doc->status] ?? ['—','#64748b','#f8fafc']; @endphp
                     <tr>
-                        <td style="font-weight:500;">{{ $licMap[$doc->type] ?? $doc->type }}</td>
+                        <td style="font-weight:600;font-size:.82rem;">{{ $licMap[$doc->type] ?? $doc->type }}</td>
                         <td style="font-family:monospace;font-size:.78rem;color:#64748b;">{{ $doc->document_number ?? '—' }}</td>
-                        <td>{{ $doc->expiry_date ? $doc->expiry_date->isoFormat('D MMM YYYY') : '—' }}</td>
+                        <td style="font-size:.78rem;color:#64748b;">{{ $doc->issue_date ? $doc->issue_date->isoFormat('D MMM YY') : '—' }}</td>
+                        <td style="font-size:.78rem;">{{ $doc->expiry_date ? $doc->expiry_date->isoFormat('D MMM YYYY') : '—' }}</td>
                         <td><span class="badge" style="background:{{ $ds[2] }};color:{{ $ds[1] }};">{{ $ds[0] }}</span></td>
+                        <td style="white-space:nowrap;">
+                            @if($doc->file_path)
+                            <a href="{{ Storage::url($doc->file_path) }}" target="_blank"
+                               style="display:inline-flex;align-items:center;gap:.2rem;font-size:.72rem;font-weight:600;color:#10b981;text-decoration:none;padding:.15rem .45rem;border:1px solid #bbf7d0;background:#f0fdf4;border-radius:99px;margin-right:.25rem;">
+                                <svg width="9" height="9" fill="none" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M15 3h6v6M10 14L21 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                                Voir
+                            </a>
+                            @endif
+                            @can('vehicles.edit')
+                            @if(!$vehicle->trashed())
+                            <form method="POST" action="{{ route('vehicle-documents.destroy', [$vehicle, $doc]) }}" style="display:inline;"
+                                  data-confirm="Ce document sera supprimé définitivement." data-title="Supprimer ce document ?"
+                                  data-btn-text="Supprimer" data-btn-color="#dc2626" data-icon="warning">
+                                @csrf @method('DELETE')
+                                <button type="submit" style="display:inline-flex;align-items:center;font-size:.72rem;font-weight:600;color:#dc2626;background:#fef2f2;border:1px solid #fecaca;border-radius:99px;padding:.15rem .45rem;cursor:pointer;">
+                                    <svg width="9" height="9" fill="none" viewBox="0 0 24 24"><polyline points="3,6 5,6 21,6" stroke="currentColor" stroke-width="2"/><path d="M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                                </button>
+                            </form>
+                            @endif
+                            @endcan
+                        </td>
                     </tr>
                     @endforeach
                     </tbody>
@@ -292,24 +412,29 @@ $s = $statusMap[$vehicle->status] ?? ['Inconnu','#64748b','#f8fafc'];
         </div>
 
         {{-- Réparations récentes --}}
+        @php
+        $repTypeMap = ['corrective'=>'Réparation','preventive'=>'Entretien préventif','warranty'=>'Garantie','recall'=>'Rappel constructeur'];
+        @endphp
         <div class="card">
             <div class="card-head">
                 <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.77 3.77z" stroke="#d97706" stroke-width="2"/></svg>
                 <span class="card-title">Réparations récentes</span>
+                <span style="margin-left:auto;font-size:.75rem;color:#94a3b8;">5 dernières</span>
             </div>
             <div class="table-mini">
                 @if($vehicle->repairs->isEmpty())
                     <p style="text-align:center;padding:1.25rem;color:#94a3b8;font-size:.82rem;">Aucune réparation enregistrée.</p>
                 @else
                 <table>
-                    <thead><tr><th>Date</th><th>Garage</th><th>Motif</th><th>Statut</th></tr></thead>
+                    <thead><tr><th>Date envoi</th><th>Garage</th><th>Type</th><th>Diagnostic</th><th>Statut</th></tr></thead>
                     <tbody>
                     @foreach($vehicle->repairs as $rep)
                     @php $rs = $repairStatusMap[$rep->status] ?? ['—','#64748b','#f8fafc']; @endphp
                     <tr>
-                        <td style="font-size:.78rem;">{{ $rep->created_at->isoFormat('D MMM YYYY') }}</td>
+                        <td style="font-size:.78rem;">{{ $rep->datetime_sent ? \Carbon\Carbon::parse($rep->datetime_sent)->isoFormat('D MMM YYYY') : $rep->created_at->isoFormat('D MMM YYYY') }}</td>
                         <td style="font-size:.8rem;">{{ $rep->garage->name ?? '—' }}</td>
-                        <td style="font-size:.78rem;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $rep->reason ?? '—' }}</td>
+                        <td style="font-size:.78rem;font-weight:500;">{{ $repTypeMap[$rep->repair_type] ?? ucfirst($rep->repair_type) }}</td>
+                        <td style="font-size:.78rem;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#64748b;" title="{{ $rep->diagnosis }}">{{ $rep->diagnosis ?? '—' }}</td>
                         <td><span class="badge" style="background:{{ $rs[2] }};color:{{ $rs[1] }};">{{ $rs[0] }}</span></td>
                     </tr>
                     @endforeach

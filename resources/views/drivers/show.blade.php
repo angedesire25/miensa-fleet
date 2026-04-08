@@ -11,8 +11,10 @@ $assignStatusMap=['planned'=>['Planifiée','#6366f1','#f0f0ff'],'confirmed'=>['C
 $docTypeMap=['license'=>'Permis','national_id'=>'CNI','medical_fitness'=>'Visite médicale','safety_training'=>'Formation','special_habilitation'=>'Habilitation','employment_contract'=>'Contrat','criminal_record'=>'Casier judiciaire','other'=>'Autre'];
 $docStatusMap=['valid'=>['Valide','#10b981','#f0fdf4'],'expiring_soon'=>['Expire bientôt','#d97706','#fffbeb'],'expired'=>['Expiré','#ef4444','#fef2f2'],'missing'=>['Manquant','#64748b','#f8fafc']];
 $s = $statusMap[$driver->status] ?? ['Inconnu','#64748b','#f8fafc'];
-$licenseExpired  = $driver->license_expiry_date?->isPast();
-$licenseExpiring = !$licenseExpired && $driver->license_expiry_date?->diffInDays(now()) <= 30;
+$licenseExpired  = $driver->license_expiry_date?->isPast() ?? false;
+$licenseExpiring = !$licenseExpired
+    && $driver->license_expiry_date !== null
+    && $driver->license_expiry_date->diffInDays(now()) <= 30;
 @endphp
 
 <style>
@@ -47,8 +49,8 @@ $licenseExpiring = !$licenseExpired && $driver->license_expiry_date?->diffInDays
     <span style="color:#374151;">{{ $driver->full_name }}</span>
 </div>
 
-{{-- Bandeau profil incomplet (permis manquant) --}}
-@if(!$driver->license_number)
+{{-- Bandeau profil incomplet (téléphone ou permis manquant) --}}
+@if(!$driver->phone || !$driver->license_number)
 <div style="padding:.85rem 1.1rem;background:#fffbeb;border:1px solid #fde68a;border-radius:.65rem;margin-bottom:1.25rem;display:flex;gap:.75rem;align-items:center;justify-content:space-between;">
     <div style="display:flex;gap:.65rem;align-items:center;">
         <svg width="18" height="18" fill="none" viewBox="0 0 24 24" style="flex-shrink:0;color:#d97706;">
@@ -56,7 +58,14 @@ $licenseExpiring = !$licenseExpired && $driver->license_expiry_date?->diffInDays
             <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="currentColor" stroke-width="2"/>
         </svg>
         <div style="font-size:.83rem;color:#92400e;">
-            <strong>Profil incomplet</strong> — Les informations du permis de conduire ne sont pas encore renseignées.
+            <strong>Profil incomplet</strong> —
+            @if(!$driver->phone && !$driver->license_number)
+                Le téléphone et les informations du permis de conduire ne sont pas encore renseignés.
+            @elseif(!$driver->phone)
+                Le numéro de téléphone n'est pas encore renseigné.
+            @else
+                Les informations du permis de conduire ne sont pas encore renseignées.
+            @endif
         </div>
     </div>
     @can('drivers.edit')
@@ -159,9 +168,22 @@ $licenseExpiring = !$licenseExpired && $driver->license_expiry_date?->diffInDays
                     </button>
                 </form>
                 @endcan
+
+                @if(auth()->user()->hasAnyRole(['super_admin', 'admin']))
+                <form method="POST" action="{{ route('drivers.force-destroy', $driver->id) }}"
+                      data-confirm="Cette suppression est IRRÉVERSIBLE. Toutes les données du profil seront effacées définitivement."
+                      data-title="Supprimer {{ $driver->full_name }} définitivement ?"
+                      data-btn-text="Supprimer définitivement" data-btn-color="#dc2626" data-icon="warning">
+                    @csrf @method('DELETE')
+                    <button type="submit" style="width:100%;justify-content:center;display:inline-flex;align-items:center;gap:.4rem;padding:.5rem 1rem;background:#7f1d1d;color:#fca5a5;border:1.5px solid #dc2626;border-radius:.45rem;font-size:.8rem;font-weight:700;cursor:pointer;">
+                        <svg width="12" height="12" fill="none" viewBox="0 0 24 24"><polyline points="3,6 5,6 21,6" stroke="currentColor" stroke-width="2"/><path d="M19 6l-1 14H6L5 6M10 11v6M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                        Supprimer définitivement
+                    </button>
+                </form>
+                @endif
             </div>
             @else
-            <div style="padding:1rem 1.25rem;border-top:1px solid #f1f5f9;">
+            <div style="padding:1rem 1.25rem;border-top:1px solid #f1f5f9;display:flex;flex-direction:column;gap:.5rem;">
                 @can('drivers.delete')
                 <form method="POST" action="{{ route('drivers.restore', $driver->id) }}">
                     @csrf
@@ -171,6 +193,19 @@ $licenseExpiring = !$licenseExpired && $driver->license_expiry_date?->diffInDays
                     </button>
                 </form>
                 @endcan
+
+                @if(auth()->user()->hasAnyRole(['super_admin', 'admin']))
+                <form method="POST" action="{{ route('drivers.force-destroy', $driver->id) }}"
+                      data-confirm="Cette suppression est IRRÉVERSIBLE. Toutes les données du profil seront effacées définitivement."
+                      data-title="Supprimer {{ $driver->full_name }} définitivement ?"
+                      data-btn-text="Supprimer définitivement" data-btn-color="#dc2626" data-icon="warning">
+                    @csrf @method('DELETE')
+                    <button type="submit" style="width:100%;justify-content:center;display:inline-flex;align-items:center;gap:.4rem;padding:.5rem 1rem;background:#7f1d1d;color:#fca5a5;border:1.5px solid #dc2626;border-radius:.45rem;font-size:.8rem;font-weight:700;cursor:pointer;">
+                        <svg width="12" height="12" fill="none" viewBox="0 0 24 24"><polyline points="3,6 5,6 21,6" stroke="currentColor" stroke-width="2"/><path d="M19 6l-1 14H6L5 6M10 11v6M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                        Supprimer définitivement
+                    </button>
+                </form>
+                @endif
             </div>
             @endif
         </div>
@@ -227,7 +262,7 @@ $licenseExpiring = !$licenseExpired && $driver->license_expiry_date?->diffInDays
                     <span class="dd" style="color:{{ $licenseExpired ? '#dc2626' : ($licenseExpiring ? '#d97706' : '#0f172a') }};font-weight:{{ ($licenseExpired||$licenseExpiring)?'700':'500' }};">
                         {{ $driver->license_expiry_date?->isoFormat('D MMMM YYYY') ?? '—' }}
                         @if($licenseExpired) <span class="badge" style="background:#fef2f2;color:#dc2626;margin-left:.3rem;">Expiré</span>
-                        @elseif($licenseExpiring) <span class="badge" style="background:#fffbeb;color:#d97706;margin-left:.3rem;">Expire dans {{ $driver->license_expiry_date->diffInDays(now()) }} j</span>
+                        @elseif($licenseExpiring) <span class="badge" style="background:#fffbeb;color:#d97706;margin-left:.3rem;">Expire dans {{ $driver->license_expiry_date?->diffInDays(now()) }} j</span>
                         @endif
                     </span>
                     <span class="dt">Autorité</span>
@@ -269,22 +304,43 @@ $licenseExpiring = !$licenseExpired && $driver->license_expiry_date?->diffInDays
                     <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="#6366f1" stroke-width="2"/><path d="M14 2v6h6" stroke="#6366f1" stroke-width="2" stroke-linecap="round"/></svg>
                     <span class="card-title">Documents administratifs</span>
                 </div>
-                <span style="font-size:.75rem;color:#94a3b8;">{{ $driver->documents->count() }} doc(s)</span>
+                <div style="display:flex;align-items:center;gap:.75rem;">
+                    <span style="font-size:.75rem;color:#94a3b8;">{{ $driver->documents->count() }} doc(s)</span>
+                    @can('drivers.edit')
+                    @if(!$driver->trashed())
+                    <a href="{{ route('drivers.edit', $driver) }}" style="font-size:.73rem;font-weight:600;color:#6366f1;text-decoration:none;border:1px solid #c7d2fe;background:#f0f0ff;padding:.15rem .55rem;border-radius:99px;">
+                        + Ajouter / modifier
+                    </a>
+                    @endif
+                    @endcan
+                </div>
             </div>
             <div class="table-mini">
                 @if($driver->documents->isEmpty())
-                    <p style="text-align:center;padding:1.25rem;color:#94a3b8;font-size:.82rem;">Aucun document enregistré.</p>
+                    <p style="text-align:center;padding:1.25rem;color:#94a3b8;font-size:.82rem;">Aucun document enregistré. <a href="{{ route('drivers.edit', $driver) }}" style="color:#6366f1;">Ajouter →</a></p>
                 @else
                 <table>
-                    <thead><tr><th>Type</th><th>Référence</th><th>Expiration</th><th>Statut</th></tr></thead>
+                    <thead><tr><th>Type</th><th>Référence</th><th>Délivrance</th><th>Expiration</th><th>Statut</th><th></th></tr></thead>
                     <tbody>
                     @foreach($driver->documents as $doc)
                     @php $ds = $docStatusMap[$doc->status] ?? ['—','#64748b','#f8fafc']; @endphp
                     <tr>
-                        <td style="font-weight:500;">{{ $docTypeMap[$doc->type] ?? $doc->type }}</td>
+                        <td style="font-weight:600;font-size:.82rem;">{{ $docTypeMap[$doc->type] ?? $doc->type }}</td>
                         <td style="font-family:monospace;font-size:.78rem;color:#64748b;">{{ $doc->document_number ?? '—' }}</td>
+                        <td style="font-size:.78rem;color:#64748b;">{{ $doc->issue_date ? $doc->issue_date->isoFormat('D MMM YYYY') : '—' }}</td>
                         <td style="font-size:.78rem;">{{ $doc->expiry_date ? $doc->expiry_date->isoFormat('D MMM YYYY') : '—' }}</td>
                         <td><span class="badge" style="background:{{ $ds[2] }};color:{{ $ds[1] }};">{{ $ds[0] }}</span></td>
+                        <td>
+                            @if($doc->file_path)
+                            <a href="{{ Storage::url($doc->file_path) }}" target="_blank"
+                               style="display:inline-flex;align-items:center;gap:.25rem;font-size:.72rem;font-weight:600;color:#10b981;text-decoration:none;padding:.2rem .5rem;border:1px solid #bbf7d0;background:#f0fdf4;border-radius:99px;white-space:nowrap;">
+                                <svg width="10" height="10" fill="none" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M15 3h6v6M10 14L21 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                                Voir
+                            </a>
+                            @else
+                            <span style="font-size:.72rem;color:#cbd5e1;">—</span>
+                            @endif
+                        </td>
                     </tr>
                     @endforeach
                     </tbody>
@@ -321,6 +377,79 @@ $licenseExpiring = !$licenseExpired && $driver->license_expiry_date?->diffInDays
                 @endif
             </div>
         </div>
+
+        {{-- Historique des infractions --}}
+        <div class="card">
+            <div class="card-head">
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01" stroke="#ef4444" stroke-width="2" stroke-linecap="round"/><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="#ef4444" stroke-width="2"/></svg>
+                <span class="card-title">Infractions</span>
+                <span style="margin-left:auto;font-size:.75rem;color:#94a3b8;">10 dernières</span>
+            </div>
+            @php
+            $infrTypeMap = ['speeding'=>'Excès de vitesse','red_light'=>'Feu rouge','illegal_parking'=>'Stationnement illicite','no_seatbelt'=>'Ceinture','phone_use'=>'Téléphone au volant','drunk_driving'=>'Conduite en état d\'ivresse','overloading'=>'Surcharge','no_stop'=>'Stop non respecté','wrong_way'=>'Contresens','other'=>'Autre'];
+            $infrPayMap  = ['unpaid'=>['Non payée','#ef4444','#fef2f2'],'paid_by_company'=>['Payée (société)','#10b981','#f0fdf4'],'charged_to_driver'=>['Imputée chauffeur','#d97706','#fffbeb'],'paid'=>['Payée','#10b981','#f0fdf4']];
+            @endphp
+            <div class="table-mini">
+                @if($driver->infractions->isEmpty())
+                    <p style="text-align:center;padding:1.25rem;color:#94a3b8;font-size:.82rem;">Aucune infraction enregistrée.</p>
+                @else
+                <table>
+                    <thead><tr><th>Type</th><th>Véhicule</th><th>Date</th><th>Amende</th><th>Paiement</th></tr></thead>
+                    <tbody>
+                    @foreach($driver->infractions as $inf)
+                    @php $ip = $infrPayMap[$inf->payment_status] ?? ['—','#64748b','#f8fafc']; @endphp
+                    <tr>
+                        <td style="font-weight:500;font-size:.82rem;">{{ $infrTypeMap[$inf->type] ?? ucfirst(str_replace('_',' ',$inf->type)) }}</td>
+                        <td style="font-family:monospace;font-size:.78rem;color:#64748b;">{{ $inf->vehicle?->plate ?? '—' }}</td>
+                        <td style="font-size:.78rem;">{{ $inf->datetime_occurred ? \Carbon\Carbon::parse($inf->datetime_occurred)->isoFormat('D MMM YYYY') : '—' }}</td>
+                        <td style="font-size:.82rem;font-weight:600;color:#dc2626;">{{ $inf->fine_amount ? number_format($inf->fine_amount, 0, ',', ' ') . ' FCFA' : '—' }}</td>
+                        <td><span class="badge" style="background:{{ $ip[2] }};color:{{ $ip[1] }};">{{ $ip[0] }}</span></td>
+                    </tr>
+                    @endforeach
+                    </tbody>
+                </table>
+                @endif
+            </div>
+        </div>
+
+        {{-- Historique des sinistres --}}
+        <div class="card">
+            <div class="card-head">
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="#8b5cf6" stroke-width="2"/><path d="M9 12l2 2 4-4" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round"/></svg>
+                <span class="card-title">Sinistres</span>
+                <span style="margin-left:auto;font-size:.75rem;color:#94a3b8;">10 derniers</span>
+            </div>
+            @php
+            $incTypeMap = ['accident'=>'Accident','breakdown'=>'Panne mécanique','flat_tire'=>'Crevaison','electrical_fault'=>'Panne électrique','body_damage'=>'Dommage carrosserie','theft_attempt'=>'Tentative de vol','theft'=>'Vol','flood_damage'=>'Inondation','fire'=>'Incendie','vandalism'=>'Vandalisme','other'=>'Autre'];
+            $incSevMap  = ['minor'=>['Léger','#10b981','#f0fdf4'],'moderate'=>['Modéré','#d97706','#fffbeb'],'major'=>['Grave','#ef4444','#fef2f2'],'total_loss'=>['Perte totale','#7c3aed','#f5f3ff']];
+            $incStatMap = ['open'=>['Ouvert','#3b82f6','#eff6ff'],'at_garage'=>['Au garage','#d97706','#fffbeb'],'repaired'=>['Réparé','#10b981','#f0fdf4'],'total_loss'=>['Épave','#7c3aed','#f5f3ff'],'closed'=>['Clôturé','#64748b','#f8fafc']];
+            @endphp
+            <div class="table-mini">
+                @if($driver->incidents->isEmpty())
+                    <p style="text-align:center;padding:1.25rem;color:#94a3b8;font-size:.82rem;">Aucun sinistre enregistré.</p>
+                @else
+                <table>
+                    <thead><tr><th>Type</th><th>Véhicule</th><th>Date</th><th>Gravité</th><th>Statut</th></tr></thead>
+                    <tbody>
+                    @foreach($driver->incidents as $inc)
+                    @php
+                        $isev = $incSevMap[$inc->severity]  ?? ['—','#64748b','#f8fafc'];
+                        $ist  = $incStatMap[$inc->status]   ?? ['—','#64748b','#f8fafc'];
+                    @endphp
+                    <tr>
+                        <td style="font-weight:500;font-size:.82rem;">{{ $incTypeMap[$inc->type] ?? ucfirst(str_replace('_',' ',$inc->type)) }}</td>
+                        <td style="font-family:monospace;font-size:.78rem;color:#64748b;">{{ $inc->vehicle?->plate ?? '—' }}</td>
+                        <td style="font-size:.78rem;">{{ \Carbon\Carbon::parse($inc->datetime_occurred)->isoFormat('D MMM YYYY') }}</td>
+                        <td><span class="badge" style="background:{{ $isev[2] }};color:{{ $isev[1] }};">{{ $isev[0] }}</span></td>
+                        <td><span class="badge" style="background:{{ $ist[2] }};color:{{ $ist[1] }};">{{ $ist[0] }}</span></td>
+                    </tr>
+                    @endforeach
+                    </tbody>
+                </table>
+                @endif
+            </div>
+        </div>
+
     </div>
 </div>
 @endsection

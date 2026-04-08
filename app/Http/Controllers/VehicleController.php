@@ -8,6 +8,7 @@ use App\Models\VehiclePhoto;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -210,6 +211,66 @@ class VehicleController extends Controller
         $vehicle->restore();
         return redirect()->route('vehicles.show', $vehicle)
                          ->with('swal_success', 'Véhicule restauré.');
+    }
+
+    /**
+     * Suppression définitive (irréversible) — réservée aux admins.
+     * Vérifie d'abord qu'aucune donnée liée ne bloque la suppression.
+     * Si des données existent, liste les sections à vider en premier.
+     */
+    public function forceDestroy(int $id): RedirectResponse
+    {
+        $vehicle = Vehicle::withTrashed()->findOrFail($id);
+        $plate   = $vehicle->plate;
+
+        // Vérifier chaque relation susceptible de bloquer la suppression
+        $blocking = [];
+
+        if ($vehicle->inspections()->count())
+            $blocking[] = $vehicle->inspections()->count() . ' fiche(s) de contrôle';
+
+        if ($vehicle->infractions()->count())
+            $blocking[] = $vehicle->infractions()->count() . ' infraction(s)';
+
+        if ($vehicle->assignments()->count())
+            $blocking[] = $vehicle->assignments()->count() . ' affectation(s)';
+
+        if ($vehicle->vehicleRequests()->count())
+            $blocking[] = $vehicle->vehicleRequests()->count() . ' demande(s) de véhicule';
+
+        if ($vehicle->incidents()->count())
+            $blocking[] = $vehicle->incidents()->count() . ' sinistre(s)';
+
+        if ($vehicle->repairs()->count())
+            $blocking[] = $vehicle->repairs()->count() . ' réparation(s)';
+
+        if ($vehicle->tripLogs()->count())
+            $blocking[] = $vehicle->tripLogs()->count() . ' entrée(s) de carnet de bord';
+
+        if ($vehicle->alerts()->count())
+            $blocking[] = $vehicle->alerts()->count() . ' alerte(s)';
+
+        // Si des données liées existent, on informe l'utilisateur sans rien supprimer
+        if (!empty($blocking)) {
+            $list = implode(', ', $blocking);
+            return redirect()->back()
+                ->with('swal_error', "Impossible de supprimer « {$plate} » : ce véhicule est lié à {$list}. Supprimez ces données en premier.");
+        }
+
+        // Aucune donnée liée bloquante : supprimer les fichiers puis le véhicule
+        foreach ($vehicle->photos()->get() as $photo) {
+            Storage::disk('public')->delete($photo->file_path);
+        }
+        foreach ($vehicle->documents()->get() as $doc) {
+            if ($doc->file_path) Storage::disk('public')->delete($doc->file_path);
+        }
+
+        $vehicle->photos()->delete();
+        $vehicle->documents()->delete();
+        $vehicle->forceDelete();
+
+        return redirect()->route('vehicles.index')
+                         ->with('swal_success', "Véhicule {$plate} supprimé définitivement.");
     }
 
     // ── Statut ─────────────────────────────────────────────────────────────

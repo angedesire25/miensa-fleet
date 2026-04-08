@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Driver;
 use App\Models\Infraction;
+use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\InfractionService;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -61,6 +63,52 @@ class InfractionController extends Controller
         return view('infractions.index', compact('infractions', 'stats', 'vehicles'));
     }
 
+    // ── Identification temps-réel (AJAX) ───────────────────────────────────
+
+    /**
+     * Identifie en temps réel qui utilisait le véhicule à la date/heure donnée.
+     * Appelé par le formulaire d'infraction via fetch() pour pré-remplir le conducteur.
+     *
+     * Retourne JSON :
+     *   { type: 'driver', id, name, ref, source }   si un chauffeur est trouvé
+     *   { type: 'user',   id, name, ref, source }   si un collaborateur (vehicle_request)
+     *   { type: 'unknown' }                          si aucune utilisation trouvée
+     */
+    public function identifyOccupant(Request $request): JsonResponse
+    {
+        $request->validate([
+            'vehicle_id'        => ['required', 'exists:vehicles,id'],
+            'datetime_occurred' => ['required', 'date'],
+        ]);
+
+        $occurred   = Carbon::parse($request->datetime_occurred);
+        $identified = $this->infractionService->identifyDriver((int) $request->vehicle_id, $occurred);
+
+        if ($identified['source'] === 'assignment' && $identified['driver_id']) {
+            $driver = Driver::find($identified['driver_id'], ['id', 'full_name', 'matricule']);
+            return response()->json([
+                'type'   => 'driver',
+                'id'     => $driver->id,
+                'name'   => $driver->full_name,
+                'ref'    => $driver->matricule ?? '',
+                'source' => 'Affectation chauffeur',
+            ]);
+        }
+
+        if ($identified['source'] === 'request' && $identified['user_id']) {
+            $user = User::find($identified['user_id'], ['id', 'name', 'email', 'department']);
+            return response()->json([
+                'type'   => 'user',
+                'id'     => $user->id,
+                'name'   => $user->name,
+                'ref'    => $user->department ?? $user->email ?? '',
+                'source' => 'Demande de véhicule',
+            ]);
+        }
+
+        return response()->json(['type' => 'unknown']);
+    }
+
     // ── Création ───────────────────────────────────────────────────────────
 
     public function create(): View
@@ -76,6 +124,7 @@ class InfractionController extends Controller
         $data = $request->validate([
             'vehicle_id'        => ['required', 'exists:vehicles,id'],
             'driver_id'         => ['nullable', 'exists:drivers,id'],
+            'user_id'           => ['nullable', 'exists:users,id'],
             'datetime_occurred' => ['required', 'date', 'before_or_equal:now'],
             'location'          => ['nullable', 'string', 'max:255'],
             'type'              => ['required', 'in:speeding,red_light,parking,phone_use,seatbelt,alcohol,dangerous_driving,overload,invalid_documents,other'],
@@ -90,14 +139,17 @@ class InfractionController extends Controller
         $data['status']     = 'open';
         $data['payment_status'] = $data['fine_amount'] ? 'unpaid' : null;
 
-        // Identification automatique du conducteur si non fourni
-        if (empty($data['driver_id'])) {
+        // Si aucun conducteur ni collaborateur renseigné → identification automatique
+        if (empty($data['driver_id']) && empty($data['user_id'])) {
             $occurred  = Carbon::parse($data['datetime_occurred']);
             $identified = $this->infractionService->identifyDriver((int) $data['vehicle_id'], $occurred);
 
             $data['driver_id']       = $identified['driver_id'];
             $data['user_id']         = $identified['user_id'];
             $data['auto_identified'] = $identified['source'] !== 'unknown';
+        } elseif (!empty($data['driver_id']) || !empty($data['user_id'])) {
+            // Pré-rempli depuis le formulaire (via AJAX) → marquer comme identifié
+            $data['auto_identified'] = true;
         }
 
         $infraction = Infraction::create($data);

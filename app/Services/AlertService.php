@@ -6,6 +6,7 @@ use App\Models\Alert;
 use App\Models\Assignment;
 use App\Models\Driver;
 use App\Models\DriverDocument;
+use App\Models\Inspection;
 use App\Models\PartReplacement;
 use App\Models\Repair;
 use App\Models\Vehicle;
@@ -523,6 +524,96 @@ class AlertService
                                   . " (seuil : {$overdueDays} jours).",
                     'severity'   => 'warning',
                     'channels'   => ['in_app', 'email'],
+                ]);
+            });
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // Vidange
+    // ──────────────────────────────────────────────────────────────────────
+
+    /**
+     * Vérifie les prochaines dates de vidange saisies dans les fiches de contrôle.
+     *
+     * Pour chaque véhicule, on prend la fiche de contrôle la plus récente
+     * ayant un `oil_change_next_date` renseigné.
+     *
+     * Seuils d'alerte :
+     *   - oil_change_next_date dans [0, 15] jours → warning  (oil_change_due)
+     *   - oil_change_next_date < aujourd'hui       → critical (oil_change_overdue)
+     *
+     * Anti-doublon : ne recrée pas si une alerte oil_change_due|overdue
+     * non traitée existe déjà pour ce vehicle_id.
+     */
+    public function checkOilChangesDue(): void
+    {
+        $today       = now()->startOfDay();
+        $warnHorizon = $today->copy()->addDays(15);
+
+        // Sous-requête : ID de la fiche la plus récente par véhicule
+        // ayant oil_change_next_date renseigné
+        $latestIds = Inspection::whereNotNull('oil_change_next_date')
+            ->select(DB::raw('MAX(id) as id'))
+            ->groupBy('vehicle_id')
+            ->pluck('id');
+
+        Inspection::whereIn('id', $latestIds)
+            ->with('vehicle')
+            ->each(function (Inspection $inspection) use ($today, $warnHorizon) {
+                $vehicle   = $inspection->vehicle;
+                $nextDate  = $inspection->oil_change_next_date;
+
+                if (! $vehicle || ! $nextDate) {
+                    return;
+                }
+
+                $nextDay  = $nextDate->copy()->startOfDay();
+                $overdue  = $nextDay->lt($today);
+                $dueSoon  = ! $overdue && $nextDay->lte($warnHorizon);
+
+                if (! $overdue && ! $dueSoon) {
+                    return; // Pas encore dans l'horizon d'alerte
+                }
+
+                $alertType = $overdue ? 'oil_change_overdue' : 'oil_change_due';
+                $severity  = $overdue ? 'critical' : 'warning';
+
+                // Anti-doublon : même type + même vehicle_id + non traité
+                $exists = Alert::whereIn('type', ['oil_change_due', 'oil_change_overdue'])
+                    ->where('vehicle_id', $vehicle->id)
+                    ->whereIn('status', ['new', 'seen'])
+                    ->exists();
+
+                if ($exists) {
+                    return;
+                }
+
+                $plate     = $vehicle->plate;
+                $brand     = "{$vehicle->brand} {$vehicle->model}";
+                $dateLabel = $nextDate->format('d/m/Y');
+                $daysLeft  = (int) $today->diffInDays($nextDay, false);
+
+                if ($overdue) {
+                    $title   = "Vidange dépassée — {$plate}";
+                    $message = "La vidange du véhicule {$brand} ({$plate}) était prévue le {$dateLabel}"
+                             . " — dépassée de " . abs($daysLeft) . " jour(s).";
+                } else {
+                    $title   = "Vidange à prévoir — {$plate}";
+                    $message = "La vidange du véhicule {$brand} ({$plate}) est prévue le {$dateLabel}"
+                             . " (dans {$daysLeft} jour(s)).";
+                    if ($inspection->oil_change_next_km) {
+                        $message .= " Seuil km : " . number_format($inspection->oil_change_next_km, 0, ',', ' ') . " km.";
+                    }
+                }
+
+                $this->createAlert($alertType, [
+                    'vehicle_id'     => $vehicle->id,
+                    'title'          => $title,
+                    'message'        => $message,
+                    'due_date'       => $nextDate,
+                    'days_remaining' => $daysLeft,
+                    'severity'       => $severity,
+                    'channels'       => ['in_app', 'email'],
                 ]);
             });
     }

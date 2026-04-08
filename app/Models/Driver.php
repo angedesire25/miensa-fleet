@@ -47,6 +47,17 @@ class Driver extends Model
         'created_by',
     ];
 
+    /**
+     * Champs vides par défaut (évite les erreurs de type sur les colonnes nullable).
+     * `phone` est nullable depuis la migration 2026_04_08 : un profil peut être
+     * créé automatiquement depuis un compte utilisateur sans téléphone renseigné.
+     */
+    protected $attributes = [
+        'total_km'           => 0,
+        'total_assignments'  => 0,
+        'total_infractions'  => 0,
+    ];
+
     protected function casts(): array
     {
         return [
@@ -131,6 +142,12 @@ class Driver extends Model
     public function infractions(): HasMany
     {
         return $this->hasMany(Infraction::class);
+    }
+
+    /** Sinistres impliquant ce chauffeur */
+    public function incidents(): HasMany
+    {
+        return $this->hasMany(Incident::class);
     }
 
     /** Alertes ciblant ce chauffeur */

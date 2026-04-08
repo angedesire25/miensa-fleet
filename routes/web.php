@@ -15,6 +15,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RepairController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\VehicleController;
+use App\Http\Controllers\VehicleDocumentController;
 use App\Http\Controllers\VehicleRequestController;
 use Illuminate\Support\Facades\Route;
 
@@ -66,6 +67,11 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permission:vehicles.edit')->put('vehicules/{vehicle}', [VehicleController::class, 'update'])->name('vehicles.update');
     Route::middleware('permission:vehicles.edit')->post('vehicules/{vehicle}/statut', [VehicleController::class, 'toggleStatus'])->name('vehicles.toggle-status');
     Route::middleware('permission:vehicles.delete')->delete('vehicules/{vehicle}', [VehicleController::class, 'destroy'])->name('vehicles.destroy');
+    // Suppression définitive (admin + super_admin uniquement)
+    Route::middleware('role:super_admin|admin')->delete('vehicules/{id}/supprimer-definitivement', [VehicleController::class, 'forceDestroy'])->name('vehicles.force-destroy');
+    // Documents administratifs du véhicule
+    Route::middleware('permission:vehicles.edit')->post('vehicules/{vehicle}/documents', [VehicleDocumentController::class, 'store'])->name('vehicle-documents.store');
+    Route::middleware('permission:vehicles.edit')->delete('vehicules/{vehicle}/documents/{document}', [VehicleDocumentController::class, 'destroy'])->name('vehicle-documents.destroy');
 
     // ── Chauffeurs ─────────────────────────────────────────────────────────
     Route::middleware('permission:drivers.view')->get('chauffeurs', [DriverController::class, 'index'])->name('drivers.index');
@@ -77,6 +83,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permission:drivers.edit')->put('chauffeurs/{driver}', [DriverController::class, 'update'])->name('drivers.update');
     Route::middleware('permission:drivers.edit')->post('chauffeurs/{driver}/statut', [DriverController::class, 'toggleStatus'])->name('drivers.toggle-status');
     Route::middleware('permission:drivers.delete')->delete('chauffeurs/{driver}', [DriverController::class, 'destroy'])->name('drivers.destroy');
+    Route::middleware('role:super_admin|admin')->delete('chauffeurs/{id}/supprimer-definitivement', [DriverController::class, 'forceDestroy'])->name('drivers.force-destroy');
 
     // ── Affectations ───────────────────────────────────────────────────────
     Route::middleware('permission:assignments.view')->get('affectations', [AssignmentController::class, 'index'])->name('assignments.index');
@@ -145,6 +152,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permission:infractions.view')->get('infractions', [InfractionController::class, 'index'])->name('infractions.index');
     Route::middleware('permission:infractions.create')->get('infractions/nouvelle', [InfractionController::class, 'create'])->name('infractions.create');
     Route::middleware('permission:infractions.create')->post('infractions', [InfractionController::class, 'store'])->name('infractions.store');
+    Route::middleware('permission:infractions.view')->get('infractions/identifier-occupant', [InfractionController::class, 'identifyOccupant'])->name('infractions.identify-occupant');
     Route::middleware('permission:infractions.view')->get('infractions/{infraction}', [InfractionController::class, 'show'])->name('infractions.show');
     Route::middleware('permission:infractions.edit')->get('infractions/{infraction}/modifier', [InfractionController::class, 'edit'])->name('infractions.edit');
     Route::middleware('permission:infractions.edit')->put('infractions/{infraction}', [InfractionController::class, 'update'])->name('infractions.update');
@@ -152,6 +160,10 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permission:infractions.edit')->post('infractions/{infraction}/paiement', [InfractionController::class, 'recordPayment'])->name('infractions.record-payment');
     Route::middleware('permission:infractions.edit')->post('infractions/{infraction}/cloturer', [InfractionController::class, 'close'])->name('infractions.close');
     Route::middleware('permission:infractions.edit')->delete('infractions/{infraction}', [InfractionController::class, 'destroy'])->name('infractions.destroy');
+
+    // ── Notifications in-app ──────────────────────────────────────────────
+    Route::post('notifications/mark-all-read', [NotificationController::class, 'markAllRead'])->name('notifications.mark-all-read');
+    Route::post('notifications/{id}/mark-read', [NotificationController::class, 'markRead'])->name('notifications.mark-read');
 
     // ── Rapports ───────────────────────────────────────────────────────────
     Route::middleware('permission:reports.view')->get('rapports', [ReportController::class, 'index'])->name('reports.index');
@@ -174,5 +186,6 @@ Route::middleware('auth')->group(function () {
         Route::post('utilisateurs/{id}/restaurer', [UserController::class, 'restore'])->name('users.restore');
         Route::post('utilisateurs/{user}/statut', [UserController::class, 'toggleStatus'])->name('users.toggle-status');
         Route::post('utilisateurs/{user}/reinitialiser-mdp', [UserController::class, 'resetPassword'])->name('users.reset-password');
+        Route::delete('utilisateurs/{id}/supprimer-definitivement', [UserController::class, 'forceDestroy'])->name('users.force-destroy');
     });
 });

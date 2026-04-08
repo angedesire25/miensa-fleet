@@ -74,7 +74,17 @@
                 @error('vehicle_id')<div class="invalid-msg">{{ $message }}</div>@enderror
             </div>
             <div class="form-group">
-                <label class="form-label">Chauffeur concerné</label>
+                <label class="form-label">
+                    Chauffeur concerné
+                    @hasanyrole('driver_user')
+                        <span style="font-size:.7rem;font-weight:500;color:#10b981;margin-left:.3rem;">
+                            — votre compte est utilisé automatiquement
+                        </span>
+                    @endhasanyrole
+                </label>
+
+                @hasanyrole('super_admin|admin|fleet_manager|controller')
+                {{-- Les gestionnaires et admins peuvent choisir n'importe quel chauffeur --}}
                 <select name="driver_id" class="form-input">
                     <option value="">— Aucun / Non applicable —</option>
                     @foreach($drivers as $d)
@@ -83,6 +93,39 @@
                         </option>
                     @endforeach
                 </select>
+                @else
+                {{--
+                    Chauffeur / Collaborateur : le champ est verrouillé sur leur propre profil.
+                    On affiche leur nom en lecture seule et on soumet driver_id via un champ caché.
+                --}}
+                @php
+                    $myDriver = auth()->user()->driver ?? null;
+                    $lockedDriverId = $isEdit
+                        ? ($inspection->driver_id ?? $myDriver?->id)
+                        : ($preDriver?->id ?? $myDriver?->id);
+                    $lockedDriverName = $isEdit
+                        ? ($inspection->driver?->full_name ?? $myDriver?->full_name ?? '—')
+                        : ($preDriver?->full_name ?? $myDriver?->full_name ?? '—');
+                    $lockedDriverRef  = $isEdit
+                        ? ($inspection->driver?->matricule ?? $myDriver?->matricule ?? '')
+                        : ($preDriver?->matricule ?? $myDriver?->matricule ?? '');
+                @endphp
+                <input type="hidden" name="driver_id" value="{{ $lockedDriverId }}">
+                <div class="form-input" style="background:#f8fafc;color:#374151;display:flex;align-items:center;gap:.5rem;cursor:not-allowed;">
+                    <svg width="13" height="13" fill="none" viewBox="0 0 24 24" style="color:#10b981;flex-shrink:0;">
+                        <circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"/>
+                        <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                    <span style="font-weight:600;">{{ $lockedDriverName }}</span>
+                    @if($lockedDriverRef)
+                        <span style="font-size:.75rem;color:#94a3b8;">({{ $lockedDriverRef }})</span>
+                    @endif
+                    <svg width="11" height="11" fill="none" viewBox="0 0 24 24" style="margin-left:auto;color:#cbd5e1;">
+                        <rect x="3" y="11" width="18" height="11" rx="2" stroke="currentColor" stroke-width="2"/>
+                        <path d="M7 11V7a5 5 0 0110 0v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                @endhasanyrole
             </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;">
@@ -204,6 +247,39 @@
                     </div>
                 </div>
             </div>
+        </div>
+
+        {{-- Dates et km de vidange --}}
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:.85rem;margin-top:.85rem;padding-top:.85rem;border-top:1px solid #f1f5f9;">
+
+            <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">Date dernière vidange</label>
+                <input type="date" name="oil_change_date" class="form-input"
+                       value="{{ old('oil_change_date', $isEdit ? $inspection->oil_change_date?->format('Y-m-d') : '') }}">
+            </div>
+
+            <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">Km à la dernière vidange</label>
+                <input type="number" name="oil_change_km" class="form-input" min="0" placeholder="Ex : 45000"
+                       value="{{ old('oil_change_km', $isEdit ? $inspection->oil_change_km : '') }}">
+            </div>
+
+            <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label" style="display:flex;align-items:center;gap:.35rem;">
+                    Prochaine vidange
+                    <span id="oil-next-date-warn" style="display:none;font-size:.7rem;font-weight:600;color:#d97706;">⚠ proche</span>
+                </label>
+                <input type="date" name="oil_change_next_date" class="form-input" id="oil_change_next_date"
+                       value="{{ old('oil_change_next_date', $isEdit ? $inspection->oil_change_next_date?->format('Y-m-d') : '') }}"
+                       onchange="checkOilDateProximity(this)">
+            </div>
+
+            <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">Km seuil prochaine vidange</label>
+                <input type="number" name="oil_change_next_km" class="form-input" min="0" placeholder="Ex : 50000"
+                       value="{{ old('oil_change_next_km', $isEdit ? $inspection->oil_change_next_km : '') }}">
+            </div>
+
         </div>
     </div>
 </div>
@@ -545,4 +621,31 @@ function markDeletePhoto(checkbox, index) {
         wrap.style.outline = '';
     }
 }
+
+// ── Alerte proximité vidange ────────────────────────────────────────────────
+function checkOilDateProximity(input) {
+    const warn = document.getElementById('oil-next-date-warn');
+    if (!warn || !input.value) { if (warn) warn.style.display = 'none'; return; }
+    const next  = new Date(input.value);
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const diffDays = Math.ceil((next - today) / 86400000);
+    if (diffDays <= 15 && diffDays >= 0) {
+        warn.textContent = diffDays === 0 ? '⚠ aujourd\'hui' : `⚠ dans ${diffDays}j`;
+        warn.style.color = diffDays <= 7 ? '#dc2626' : '#d97706';
+        warn.style.display = 'inline';
+    } else if (diffDays < 0) {
+        warn.textContent = '⚠ dépassée';
+        warn.style.color = '#dc2626';
+        warn.style.display = 'inline';
+    } else {
+        warn.style.display = 'none';
+    }
+}
+
+// Vérification au chargement (mode édition)
+document.addEventListener('DOMContentLoaded', function () {
+    const nextDateInput = document.getElementById('oil_change_next_date');
+    if (nextDateInput && nextDateInput.value) checkOilDateProximity(nextDateInput);
+});
 </script>

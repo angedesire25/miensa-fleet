@@ -117,6 +117,10 @@
             // Badge alertes (calculé une seule fois)
             $newAlerts = \App\Models\Alert::where('status','new')->count();
 
+            // Notifications in-app (canal database) non lues
+            $unreadNotifications = auth()->user()->unreadNotifications()->latest()->limit(12)->get();
+            $unreadNotifCount    = auth()->user()->unreadNotifications()->count();
+
             // Badge contrôles : fiches du jour en brouillon ou soumises (non encore validées)
             $pendingControls = 0;
             if (class_exists(\App\Models\Inspection::class)) {
@@ -308,13 +312,105 @@
         @endif
     </div>
     <div class="topbar-right">
-        {{-- Notifications --}}
-        <button class="topbar-btn" title="Alertes">
-            <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" stroke-width="1.8"/><path d="M13.73 21a2 2 0 01-3.46 0" stroke="currentColor" stroke-width="1.8"/></svg>
-            @if(isset($alertsCount) && $alertsCount > 0)
-                <span class="topbar-notif-dot"></span>
-            @endif
-        </button>
+        {{-- Notifications dropdown --}}
+        <div style="position:relative;" id="notif-wrapper">
+            <button class="topbar-btn" id="notif-btn" title="Notifications" onclick="toggleNotifDropdown()" style="position:relative;">
+                <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" stroke-width="1.8"/><path d="M13.73 21a2 2 0 01-3.46 0" stroke="currentColor" stroke-width="1.8"/></svg>
+                @if($unreadNotifCount > 0)
+                <span style="position:absolute;top:4px;right:4px;min-width:16px;height:16px;padding:0 3px;background:#ef4444;color:#fff;border-radius:99px;font-size:.6rem;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid #fff;line-height:1;">
+                    {{ $unreadNotifCount > 99 ? '99+' : $unreadNotifCount }}
+                </span>
+                @endif
+            </button>
+
+            {{-- Dropdown --}}
+            <div id="notif-dropdown"
+                 style="display:none;position:absolute;top:calc(100% + 8px);right:0;width:360px;background:#1e293b;border:1px solid #334155;border-radius:.65rem;box-shadow:0 8px 32px rgba(0,0,0,.35);z-index:200;overflow:hidden;">
+
+                {{-- Header --}}
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:.75rem 1rem;border-bottom:1px solid #334155;">
+                    <span style="font-size:.88rem;font-weight:700;color:#f1f5f9;">
+                        Notifications
+                        @if($unreadNotifCount > 0)
+                        <span style="margin-left:.35rem;padding:.1rem .4rem;background:#ef444420;color:#ef4444;border-radius:99px;font-size:.7rem;">{{ $unreadNotifCount }}</span>
+                        @endif
+                    </span>
+                    @if($unreadNotifCount > 0)
+                    <form method="POST" action="{{ route('notifications.mark-all-read') }}" style="display:inline;">
+                        @csrf
+                        <button type="submit"
+                                style="background:none;border:none;color:#3b82f6;font-size:.75rem;cursor:pointer;padding:0;">
+                            Tout marquer comme lu
+                        </button>
+                    </form>
+                    @endif
+                </div>
+
+                {{-- Liste --}}
+                <div style="max-height:380px;overflow-y:auto;">
+                    @forelse($unreadNotifications as $notif)
+                    @php
+                        $ndata   = $notif->data;
+                        $ntype   = $ndata['type'] ?? '';
+                        $nurl    = $ndata['url'] ?? route('dashboard');
+                        $isUrgent = $ndata['is_urgent'] ?? false;
+
+                        if ($ntype === 'vehicle_request_submitted') {
+                            $icon    = '📋';
+                            $color   = $isUrgent ? '#ef4444' : '#3b82f6';
+                            $title   = 'Nouvelle demande' . ($isUrgent ? ' ⚠️ URGENTE' : '');
+                            $body    = ($ndata['requester_name'] ?? '?') . ' → ' . ($ndata['destination'] ?? '?');
+                        } elseif ($ntype === 'vehicle_request_decided') {
+                            $decision = $ndata['decision'] ?? '';
+                            $icon    = $decision === 'approved' ? '✅' : '❌';
+                            $color   = $decision === 'approved' ? '#10b981' : '#ef4444';
+                            $title   = $decision === 'approved' ? 'Demande approuvée' : 'Demande rejetée';
+                            $body    = 'Destination : ' . ($ndata['destination'] ?? '?');
+                        } elseif ($ntype === 'inspection_rejected') {
+                            $typeMap = ['departure' => 'Départ', 'return' => 'Retour', 'routine' => 'Routine'];
+                            $icon    = '⚠️';
+                            $color   = '#f59e0b';
+                            $title   = 'Fiche à corriger';
+                            $body    = ($ndata['vehicle_plate'] ?? '?') . ' — ' . ($typeMap[$ndata['inspection_type'] ?? ''] ?? ucfirst($ndata['inspection_type'] ?? ''));
+                            $nurl    = $ndata['url'] ?? route('inspections.index');
+                        } else {
+                            $icon  = '🔔';
+                            $color = '#94a3b8';
+                            $title = 'Notification';
+                            $body  = '';
+                        }
+                    @endphp
+                    <form method="POST" action="{{ route('notifications.mark-read', $notif->id) }}">
+                        @csrf
+                        <button type="submit"
+                                style="width:100%;text-align:left;background:none;border:none;cursor:pointer;padding:.75rem 1rem;border-bottom:1px solid #334155;display:flex;align-items:flex-start;gap:.75rem;transition:background .12s;"
+                                onmouseover="this.style.background='rgba(255,255,255,.04)'"
+                                onmouseout="this.style.background='transparent'">
+                            <span style="font-size:1.1rem;flex-shrink:0;margin-top:.05rem;">{{ $icon }}</span>
+                            <div style="flex:1;min-width:0;">
+                                <div style="font-size:.82rem;font-weight:600;color:{{ $color }};margin-bottom:.15rem;">{{ $title }}</div>
+                                <div style="font-size:.78rem;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $body }}</div>
+                                <div style="font-size:.7rem;color:#475569;margin-top:.2rem;">{{ $notif->created_at->diffForHumans() }}</div>
+                            </div>
+                            <span style="width:7px;height:7px;border-radius:50%;background:#3b82f6;flex-shrink:0;margin-top:.35rem;"></span>
+                        </button>
+                    </form>
+                    @empty
+                    <div style="padding:2rem;text-align:center;color:#475569;font-size:.85rem;">
+                        Aucune nouvelle notification
+                    </div>
+                    @endforelse
+                </div>
+
+                {{-- Footer --}}
+                <div style="padding:.6rem 1rem;border-top:1px solid #334155;text-align:center;">
+                    <a href="{{ route('requests.index') }}"
+                       style="font-size:.78rem;color:#3b82f6;text-decoration:none;">
+                        Voir toutes les demandes →
+                    </a>
+                </div>
+            </div>
+        </div>
         {{-- Paramètres --}}
         <button class="topbar-btn" title="Paramètres">
             <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" stroke="currentColor" stroke-width="1.8"/></svg>
@@ -343,6 +439,11 @@
     <div class="page-content">
         @yield('content')
     </div>
+
+    {{-- ── Footer copyright ──────────────────────────────────────────────── --}}
+    <footer style="text-align:center;padding:.75rem 1rem;font-size:.75rem;color:#94a3b8;border-top:1px solid #e2e8f0;margin-top:auto;">
+        &copy; {{ date('Y') }} MiensaFleet &mdash; Développé par <strong style="color:#64748b;">ADN</strong>
+    </footer>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -399,6 +500,21 @@ SwalToast.fire({
     timer: 6000,
 });
 @endif
+
+// ── Dropdown notifications ─────────────────────────────────────────────────
+function toggleNotifDropdown() {
+    const dd = document.getElementById('notif-dropdown');
+    dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+}
+
+// Fermer en cliquant en dehors
+document.addEventListener('click', function(e) {
+    const wrapper = document.getElementById('notif-wrapper');
+    if (wrapper && !wrapper.contains(e.target)) {
+        const dd = document.getElementById('notif-dropdown');
+        if (dd) dd.style.display = 'none';
+    }
+});
 
 // ── Gestionnaire de confirmations (data-confirm="texte") ───────────────────
 document.addEventListener('DOMContentLoaded', () => {

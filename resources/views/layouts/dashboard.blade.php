@@ -199,21 +199,21 @@
             <div class="nav-label" style="margin-top:.75rem;">Maintenance</div>
 
             @can('incidents.view')
-            <a href="#" class="nav-item {{ request()->routeIs('incidents.*') ? 'active' : '' }}">
+            <a href="{{ route('incidents.index') }}" class="nav-item {{ request()->routeIs('incidents.*') ? 'active' : '' }}">
                 <svg class="nav-icon" fill="none" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="currentColor" stroke-width="1.8"/></svg>
                 Sinistres
             </a>
             @endcan
 
             @can('repairs.view')
-            <a href="#" class="nav-item {{ request()->routeIs('repairs.*') ? 'active' : '' }}">
+            <a href="{{ route('repairs.index') }}" class="nav-item {{ request()->routeIs('repairs.*') ? 'active' : '' }}">
                 <svg class="nav-icon" fill="none" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.77 3.77z" stroke="currentColor" stroke-width="1.8"/></svg>
                 Réparations
             </a>
             @endcan
 
             @can('garages.view')
-            <a href="#" class="nav-item {{ request()->routeIs('garages.*') ? 'active' : '' }}">
+            <a href="{{ route('garages.index') }}" class="nav-item {{ request()->routeIs('garages.*') ? 'active' : '' }}">
                 <svg class="nav-icon" fill="none" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke="currentColor" stroke-width="1.8"/><polyline points="9,22 9,12 15,12 15,22" stroke="currentColor" stroke-width="1.8"/></svg>
                 Garages
             </a>
@@ -225,7 +225,7 @@
             <div class="nav-label" style="margin-top:.75rem;">Suivi</div>
 
             @can('alerts.view')
-            <a href="#" class="nav-item {{ request()->routeIs('alerts.*') ? 'active' : '' }}">
+            <a href="{{ route('alerts.index') }}" class="nav-item {{ request()->routeIs('alerts.*') ? 'active' : '' }}">
                 <svg class="nav-icon" fill="none" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" stroke-width="1.8"/><path d="M13.73 21a2 2 0 01-3.46 0" stroke="currentColor" stroke-width="1.8"/></svg>
                 Alertes
                 @if($newAlerts > 0)
@@ -235,14 +235,14 @@
             @endcan
 
             @can('reports.view')
-            <a href="#" class="nav-item {{ request()->routeIs('reports.*') ? 'active' : '' }}">
+            <a href="{{ route('reports.index') }}" class="nav-item {{ request()->routeIs('reports.*') ? 'active' : '' }}">
                 <svg class="nav-icon" fill="none" viewBox="0 0 24 24"><path d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" stroke="currentColor" stroke-width="1.8"/></svg>
                 Rapports
             </a>
             @endcan
 
             @can('infractions.view')
-            <a href="#" class="nav-item {{ request()->routeIs('infractions.*') ? 'active' : '' }}">
+            <a href="{{ route('infractions.index') }}" class="nav-item {{ request()->routeIs('infractions.*') ? 'active' : '' }}">
                 <svg class="nav-icon" fill="none" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 000 4h6a2 2 0 000-4M9 5a2 2 0 012-2h2a2 2 0 012 2" stroke="currentColor" stroke-width="1.8"/></svg>
                 Infractions
             </a>

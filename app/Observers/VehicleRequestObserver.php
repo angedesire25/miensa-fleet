@@ -4,6 +4,7 @@ namespace App\Observers;
 
 use App\Models\Assignment;
 use App\Models\VehicleRequest;
+use App\Notifications\VehicleRequestDecidedNotification;
 use Illuminate\Support\Facades\DB;
 
 class VehicleRequestObserver
@@ -29,6 +30,12 @@ class VehicleRequestObserver
             'rejected'    => $this->syncVehicleRejected($request, $oldStatus),
             default       => null,
         };
+
+        // Notifier le demandeur de la décision (approuvée ou rejetée)
+        if (in_array($newStatus, ['approved', 'rejected'], true)) {
+            $request->loadMissing(['requester', 'vehicle', 'driver', 'reviewedBy']);
+            $request->requester?->notify(new VehicleRequestDecidedNotification($request));
+        }
     }
 
     // ── Méthodes privées ───────────────────────────────────────────────────

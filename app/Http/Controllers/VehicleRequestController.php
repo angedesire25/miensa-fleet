@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Exceptions\VehicleAvailabilityException;
 use App\Models\Driver;
+use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleRequest;
+use App\Notifications\VehicleRequestSubmittedNotification;
 use App\Services\VehicleRequestService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
@@ -134,6 +136,18 @@ class VehicleRequestController extends Controller
         $data['is_urgent']    = $request->boolean('is_urgent');
 
         $vr = VehicleRequest::create($data);
+
+        // Notifier tous les approbateurs de la nouvelle demande
+        $vr->load('requester');
+        $approvers = User::permission('vehicle_requests.approve')
+            ->where('status', 'active')
+            ->where('id', '!=', Auth::id()) // ne pas notifier soi-même si on a la permission
+            ->get();
+
+        \Illuminate\Support\Facades\Notification::send(
+            $approvers,
+            new VehicleRequestSubmittedNotification($vr)
+        );
 
         return redirect()->route('requests.show', $vr)
             ->with('swal_success', 'Demande soumise avec succès. En attente de validation.');

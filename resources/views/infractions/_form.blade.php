@@ -1,22 +1,21 @@
 @php
     $typeOptions = [
-        'speeding'          => 'Excès de vitesse',
-        'red_light'         => 'Grillage de feu rouge',
-        'parking'           => 'Stationnement interdit',
-        'phone_use'         => 'Usage téléphone au volant',
-        'seatbelt'          => 'Non port de ceinture',
-        'alcohol'           => 'Alcool au volant',
-        'dangerous_driving' => 'Conduite dangereuse',
-        'overload'          => 'Surcharge',
-        'invalid_documents' => 'Documents non valides',
-        'other'             => 'Autre',
+        'speeding'        => 'Excès de vitesse',
+        'red_light'       => 'Grillage de feu rouge',
+        'illegal_parking' => 'Stationnement illicite',
+        'drunk_driving'   => 'Alcool au volant',
+        'phone_use'       => 'Usage téléphone au volant',
+        'accident'        => 'Accident',
+        'seatbelt'        => 'Non port de ceinture',
+        'overloading'     => 'Surcharge',
+        'other'           => 'Autre',
     ];
     $sourceOptions = [
-        'police'             => 'Police / Gendarmerie',
-        'radar'              => 'Radar automatique',
-        'internal'           => 'Signalement interne',
-        'reported_by_driver' => 'Signalé par le conducteur',
-        'third_party'        => 'Tiers',
+        'police_report'   => 'Police / Gendarmerie',
+        'speed_camera'    => 'Radar automatique',
+        'internal_report' => 'Signalement interne',
+        'joint_report'    => 'Constat amiable',
+        'other'           => 'Autre',
     ];
     $editing = isset($infraction);
 @endphp
@@ -52,20 +51,24 @@
     {{-- Conducteur --}}
     <div style="grid-column:span 2;">
         <label style="display:block;font-size:.82rem;color:#94a3b8;margin-bottom:.35rem;">
-            Conducteur (chauffeur)
-            <span style="font-size:.72rem;color:#64748b;">— laissez vide pour auto-identification depuis les affectations</span>
+            Conducteur
+            <span style="font-size:.72rem;color:#64748b;">— pré-rempli automatiquement depuis les affectations</span>
         </label>
 
         {{-- Badge d'identification automatique --}}
-        <div id="inf-occupant-badge" style="display:none;margin-bottom:.5rem;padding:.55rem .85rem;border-radius:.4rem;font-size:.82rem;display:none;align-items:center;gap:.65rem;">
+        <div id="inf-occupant-badge" style="display:none;margin-bottom:.65rem;padding:.6rem .9rem;border-radius:.4rem;font-size:.82rem;align-items:center;gap:.65rem;">
             <svg id="inf-badge-icon" width="15" height="15" fill="none" viewBox="0 0 24 24"></svg>
-            <div>
-                <span id="inf-badge-name" style="font-weight:700;"></span>
-                <span id="inf-badge-ref" style="margin-left:.4rem;opacity:.7;font-size:.75rem;"></span>
-                <br>
+            <div style="flex:1;">
+                <div style="display:flex;align-items:center;gap:.5rem;">
+                    <span id="inf-badge-name" style="font-weight:700;"></span>
+                    <span id="inf-badge-ref" style="opacity:.7;font-size:.75rem;"></span>
+                    <span id="inf-badge-label" style="font-size:.7rem;font-weight:700;padding:.15rem .5rem;border-radius:99px;"></span>
+                </div>
                 <span id="inf-badge-source" style="font-size:.72rem;opacity:.6;"></span>
+                <span id="inf-badge-override-hint" style="display:none;font-size:.72rem;color:#d97706;margin-left:.5rem;">
+                    — Modifiez le champ ci-dessous si ce n'était pas lui au moment de l'infraction
+                </span>
             </div>
-            <span id="inf-badge-label" style="margin-left:auto;font-size:.7rem;font-weight:700;padding:.15rem .5rem;border-radius:99px;"></span>
         </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;">
@@ -80,21 +83,21 @@
                     @endforeach
                 </select>
                 @error('driver_id')<p style="color:#ef4444;font-size:.75rem;margin:.25rem 0 0;">{{ $message }}</p>@enderror
-                <p style="font-size:.72rem;color:#64748b;margin:.25rem 0 0;">Chauffeur professionnel (affectation)</p>
+                <p style="font-size:.72rem;color:#64748b;margin:.25rem 0 0;">Chauffeur professionnel</p>
             </div>
             <div>
-                {{-- Collaborateur identifié automatiquement via demande de véhicule --}}
+                {{-- Collaborateur : peut être auto-identifié OU saisi manuellement --}}
                 <input type="hidden" id="inf-user-id" name="user_id" value="{{ old('user_id', $editing ? $infraction->user_id : '') }}">
-                <div id="inf-collab-display"
-                     style="width:100%;background:#0f172a;border:1px solid #475569;border-radius:.4rem;color:#64748b;padding:.55rem .75rem;font-size:.88rem;min-height:2.4rem;display:flex;align-items:center;">
-                    @if($editing && $infraction->user)
-                        <span style="color:#f1f5f9;">{{ $infraction->user->name }}</span>
-                        <span style="margin-left:.5rem;font-size:.72rem;color:#64748b;">· Demande véhicule</span>
-                    @else
-                        <span style="color:#475569;font-style:italic;font-size:.82rem;">Collaborateur — détecté automatiquement</span>
-                    @endif
-                </div>
-                <p style="font-size:.72rem;color:#64748b;margin:.25rem 0 0;">Collaborateur (demande de véhicule)</p>
+                <select id="inf-collab-select" onchange="onCollabChange(this)"
+                        style="width:100%;background:#0f172a;border:1px solid #475569;border-radius:.4rem;color:#f1f5f9;padding:.55rem .75rem;font-size:.88rem;">
+                    <option value="">— Aucun collaborateur —</option>
+                    @foreach($collaborators ?? [] as $u)
+                    <option value="{{ $u->id }}" {{ old('user_id', $editing ? $infraction->user_id : '') == $u->id ? 'selected' : '' }}>
+                        {{ $u->name }}{{ $u->department ? ' ('.$u->department.')' : '' }}
+                    </option>
+                    @endforeach
+                </select>
+                <p style="font-size:.72rem;color:#64748b;margin:.25rem 0 0;">Collaborateur (si applicable)</p>
             </div>
         </div>
     </div>
@@ -185,17 +188,17 @@
         _debounce = setTimeout(lookupOccupant, 400);
     };
 
+    // Quand l'utilisateur change le select collaborateur manuellement
+    window.onCollabChange = function (sel) {
+        const userId = document.getElementById('inf-user-id');
+        if (userId) userId.value = sel.value;
+    };
+
     async function lookupOccupant() {
         const vehicleId = document.getElementById('inf-vehicle')?.value;
         const datetime  = document.getElementById('inf-datetime')?.value;
         if (!vehicleId || !datetime) return;
 
-        const badge       = document.getElementById('inf-occupant-badge');
-        const driverSel   = document.getElementById('inf-driver');
-        const userId      = document.getElementById('inf-user-id');
-        const collabBox   = document.getElementById('inf-collab-display');
-
-        // Indicateur de chargement
         showBadge({ type: 'loading' });
 
         try {
@@ -204,80 +207,100 @@
                 headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
             });
             if (!res.ok) throw new Error('HTTP ' + res.status);
-            const data = await res.json();
-            showBadge(data, driverSel, userId, collabBox);
+            showBadge(await res.json());
         } catch (e) {
             hideBadge();
         }
     }
 
-    function showBadge(data, driverSel, userId, collabBox) {
-        const badge  = document.getElementById('inf-occupant-badge');
-        const name   = document.getElementById('inf-badge-name');
-        const ref    = document.getElementById('inf-badge-ref');
-        const source = document.getElementById('inf-badge-source');
-        const label  = document.getElementById('inf-badge-label');
-        const icon   = document.getElementById('inf-badge-icon');
+    function showBadge(data) {
+        const badge       = document.getElementById('inf-occupant-badge');
+        const name        = document.getElementById('inf-badge-name');
+        const ref         = document.getElementById('inf-badge-ref');
+        const source      = document.getElementById('inf-badge-source');
+        const label       = document.getElementById('inf-badge-label');
+        const icon        = document.getElementById('inf-badge-icon');
+        const hint        = document.getElementById('inf-badge-override-hint');
+        const driverSel   = document.getElementById('inf-driver');
+        const collabSel   = document.getElementById('inf-collab-select');
+        const userIdField = document.getElementById('inf-user-id');
 
+        // ── Loading ──────────────────────────────────────────────────────────
         if (data.type === 'loading') {
-            badge.style.display = 'flex';
-            badge.style.background = '#1e293b';
-            badge.style.border = '1px solid #334155';
+            badge.style.cssText = 'display:flex;background:#1e293b;border:1px solid #334155;margin-bottom:.65rem;padding:.6rem .9rem;border-radius:.4rem;font-size:.82rem;align-items:center;gap:.65rem;';
             name.textContent = 'Recherche en cours…';
             ref.textContent = source.textContent = label.textContent = '';
             icon.innerHTML = '';
+            if (hint) hint.style.display = 'none';
             return;
         }
 
+        // ── Chauffeur trouvé (ponctuel ou permanent) ─────────────────────────
         if (data.type === 'driver') {
-            badge.style.display = 'flex';
-            badge.style.background = '#052e16';
-            badge.style.border = '1px solid #16a34a';
-            name.style.color = '#4ade80';
+            const isPermanent = data.is_permanent === true;
+            const bg     = isPermanent ? '#451a03' : '#052e16';
+            const border = isPermanent ? '#d97706'  : '#16a34a';
+            const color  = isPermanent ? '#fbbf24'  : '#4ade80';
+            const lblBg  = isPermanent ? '#78350f'  : '#14532d';
+            const lblTxt = isPermanent ? 'Conducteur attitré' : 'Chauffeur trouvé';
+
+            badge.style.cssText = `display:flex;background:${bg};border:1px solid ${border};margin-bottom:.65rem;padding:.6rem .9rem;border-radius:.4rem;font-size:.82rem;align-items:center;gap:.65rem;`;
+            name.style.color = color;
             name.textContent = data.name;
-            ref.textContent = data.ref ? `(${data.ref})` : '';
+            ref.textContent  = data.ref ? `(${data.ref})` : '';
             source.textContent = data.source;
-            label.textContent = 'Chauffeur trouvé';
-            label.style.background = '#14532d';
-            label.style.color = '#4ade80';
-            icon.innerHTML = '<circle cx="12" cy="8" r="4" stroke="#4ade80" stroke-width="2"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="#4ade80" stroke-width="2" stroke-linecap="round"/>';
+            label.textContent  = lblTxt;
+            label.style.cssText = `background:${lblBg};color:${color};font-size:.7rem;font-weight:700;padding:.15rem .5rem;border-radius:99px;`;
+            icon.innerHTML = '<circle cx="12" cy="8" r="4" stroke="' + color + '" stroke-width="2"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="' + color + '" stroke-width="2" stroke-linecap="round"/>';
+
             // Pré-sélectionner dans le dropdown chauffeur
-            if (driverSel && !driverSel.value) {
+            if (driverSel) {
                 const opt = [...driverSel.options].find(o => o.value == data.id);
                 if (opt) driverSel.value = data.id;
             }
-            // Réinitialiser le collaborateur
-            if (userId) userId.value = '';
-            if (collabBox) collabBox.innerHTML = '<span style="color:#475569;font-style:italic;font-size:.82rem;">Collaborateur — détecté automatiquement</span>';
-        } else if (data.type === 'user') {
-            badge.style.display = 'flex';
-            badge.style.background = '#1e1b4b';
-            badge.style.border = '1px solid #7c3aed';
+            // Vider collaborateur
+            if (collabSel) collabSel.value = '';
+            if (userIdField) userIdField.value = '';
+
+            // Hint "modifiable" uniquement pour permanent
+            if (hint) hint.style.display = isPermanent ? 'inline' : 'none';
+        }
+
+        // ── Collaborateur trouvé ─────────────────────────────────────────────
+        else if (data.type === 'user') {
+            const isPermanent = data.is_permanent === true;
+            badge.style.cssText = 'display:flex;background:#1e1b4b;border:1px solid #7c3aed;margin-bottom:.65rem;padding:.6rem .9rem;border-radius:.4rem;font-size:.82rem;align-items:center;gap:.65rem;';
             name.style.color = '#a78bfa';
-            name.textContent = data.name;
-            ref.textContent = data.ref ? `· ${data.ref}` : '';
+            name.textContent  = data.name;
+            ref.textContent   = data.ref ? `· ${data.ref}` : '';
             source.textContent = data.source;
-            label.textContent = 'Collaborateur trouvé';
-            label.style.background = '#2e1065';
-            label.style.color = '#a78bfa';
+            label.textContent  = isPermanent ? 'Collaborateur attitré' : 'Collaborateur trouvé';
+            label.style.cssText = 'background:#2e1065;color:#a78bfa;font-size:.7rem;font-weight:700;padding:.15rem .5rem;border-radius:99px;';
             icon.innerHTML = '<rect x="2" y="7" width="20" height="14" rx="2" stroke="#a78bfa" stroke-width="2"/><path d="M3 17h2l1-3h12l1 3h2" stroke="#a78bfa" stroke-width="1.5" stroke-linecap="round"/>';
-            // Remplir le champ collaborateur
-            if (userId) userId.value = data.id;
-            if (collabBox) collabBox.innerHTML = `<span style="color:#f1f5f9;">${data.name}</span><span style="margin-left:.5rem;font-size:.72rem;color:#64748b;">· Demande véhicule</span>`;
-            // Réinitialiser chauffeur si auto
+
+            // Pré-sélectionner dans le select collaborateur
+            if (collabSel) {
+                const opt = [...collabSel.options].find(o => o.value == data.id);
+                if (opt) collabSel.value = data.id;
+            }
+            if (userIdField) userIdField.value = data.id;
+            // Vider chauffeur si pas en mode édition
             if (driverSel && !{{ $editing ? 'true' : 'false' }}) driverSel.value = '';
-        } else {
-            badge.style.display = 'flex';
-            badge.style.background = '#1e293b';
-            badge.style.border = '1px solid #475569';
+
+            if (hint) hint.style.display = isPermanent ? 'inline' : 'none';
+        }
+
+        // ── Non identifié ────────────────────────────────────────────────────
+        else {
+            badge.style.cssText = 'display:flex;background:#1e293b;border:1px solid #475569;margin-bottom:.65rem;padding:.6rem .9rem;border-radius:.4rem;font-size:.82rem;align-items:center;gap:.65rem;';
             name.style.color = '#94a3b8';
-            name.textContent = 'Aucun utilisateur identifié sur ce véhicule à cette date.';
+            name.textContent  = 'Aucun conducteur identifié pour ce véhicule à cette date.';
             ref.textContent = source.textContent = '';
-            label.textContent = 'Non trouvé';
-            label.style.background = '#334155';
-            label.style.color = '#94a3b8';
+            label.textContent  = 'Non trouvé';
+            label.style.cssText = 'background:#334155;color:#94a3b8;font-size:.7rem;font-weight:700;padding:.15rem .5rem;border-radius:99px;';
             icon.innerHTML = '<circle cx="12" cy="12" r="10" stroke="#64748b" stroke-width="2"/><path d="M12 8v4M12 16h.01" stroke="#64748b" stroke-width="2" stroke-linecap="round"/>';
-            if (userId) userId.value = '';
+            if (hint) hint.style.display = 'none';
+            if (userIdField) userIdField.value = '';
         }
     }
 

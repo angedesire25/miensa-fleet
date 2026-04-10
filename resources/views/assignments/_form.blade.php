@@ -10,26 +10,29 @@
 @php
     $isEdit = isset($assignment);
     $typeMap = [
-        'mission' => 'Mission',
-        'daily' => 'Journée',
-        'permanent' => 'Permanente',
+        'mission'     => 'Mission',
+        'daily'       => 'Journée',
+        'courses'     => 'Courses',
+        'permanent'   => 'Permanente',
         'replacement' => 'Remplacement',
-        'trial' => 'Essai',
+        'trial'       => 'Essai',
     ];
-    $typeIcons = ['mission' => '🗺️', 'daily' => '📅', 'permanent' => '🔄', 'replacement' => '🔁', 'trial' => '🧪'];
+    $typeIcons = ['mission' => '🗺️', 'daily' => '📅', 'courses' => '🛒', 'permanent' => '🔄', 'replacement' => '🔁', 'trial' => '🧪'];
     $typeColors = [
-        'mission' => '#6366f1',
-        'daily' => '#3b82f6',
-        'permanent' => '#10b981',
+        'mission'     => '#6366f1',
+        'daily'       => '#3b82f6',
+        'courses'     => '#0891b2',
+        'permanent'   => '#10b981',
         'replacement' => '#d97706',
-        'trial' => '#ec4899',
+        'trial'       => '#ec4899',
     ];
     $typeDesc = [
-        'mission' => 'Déplacement ponctuel avec destination définie.',
-        'daily' => 'Mise à disposition pour la journée.',
-        'permanent' => 'Affectation continue à long terme.',
+        'mission'     => 'Déplacement ponctuel avec destination définie.',
+        'daily'       => 'Mise à disposition pour la journée.',
+        'courses'     => 'Courses journalières et petites commissions.',
+        'permanent'   => 'Affectation continue à long terme.',
         'replacement' => 'Remplacement temporaire d\'un véhicule.',
-        'trial' => 'Essai ou évaluation du véhicule.',
+        'trial'       => 'Essai ou évaluation du véhicule.',
     ];
     $vTypeIcons = ['city' => '🏙️', 'sedan' => '🚗', 'suv' => '🚙', 'pickup' => '🛻', 'van' => '🚐', 'truck' => '🚚'];
 @endphp
@@ -249,13 +252,14 @@
             <span class="form-section-title">Type d'affectation</span>
         </div>
         <div class="form-section-body">
-            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:.65rem;">
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.65rem;">
                 @foreach ($typeMap as $val => $label)
+                    @php $defaultType = old('type', 'mission'); @endphp
                     <label
-                        class="type-card {{ old('type', $preVehicle || $preDriver ? 'mission' : '') === $val ? 'selected' : '' }}"
+                        class="type-card {{ $defaultType === $val ? 'selected' : '' }}"
                         id="type-label-{{ $val }}">
                         <input type="radio" name="type" value="{{ $val }}" class="type-radio"
-                            @checked(old('type', 'mission') === $val) onchange="selectType('{{ $val }}')">
+                            @checked($defaultType === $val) onchange="selectType('{{ $val }}')">
                         <div>
                             <div style="font-size:1.1rem;margin-bottom:.25rem;">{{ $typeIcons[$val] }}</div>
                             <div style="font-size:.8rem;font-weight:700;color:#0f172a;">{{ $label }}</div>
@@ -273,54 +277,91 @@
     <input type="hidden" name="type" value="{{ old('type', $assignment->type) }}">
 @endif
 
-{{-- ── Section 2 : Chauffeur ────────────────────────────────────────────────── --}}
+{{-- ── Section 2 : Conducteur (chauffeur pro OU collaborateur) ──────────────── --}}
 @if (!$isEdit)
+    {{-- Champs hidden soumis au serveur — gérés par JS --}}
+    <input type="hidden" name="driver_id" id="field-driver-id" value="{{ old('driver_id', $preDriver?->id ?? '') }}">
+    <input type="hidden" name="user_id"   id="field-user-id"   value="{{ old('user_id', '') }}">
+
     <div class="form-section">
         <div class="form-section-head">
             <svg width="14" height="14" fill="none" viewBox="0 0 24 24">
                 <circle cx="12" cy="8" r="4" stroke="#10b981" stroke-width="2" />
                 <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="#10b981" stroke-width="2" stroke-linecap="round" />
             </svg>
-            <span class="form-section-title">Chauffeur <span style="color:#ef4444;">*</span></span>
+            <span class="form-section-title">Conducteur <span style="color:#ef4444;">*</span></span>
         </div>
         <div class="form-section-body">
-            <div class="form-group search-box">
+            {{-- Onglets --}}
+            <div style="display:flex;gap:0;margin-bottom:.85rem;border:1.5px solid #e2e8f0;border-radius:.5rem;overflow:hidden;">
+                <button type="button" id="tab-drivers"
+                    onclick="switchTab('drivers')"
+                    style="flex:1;padding:.45rem .75rem;font-size:.8rem;font-weight:600;border:none;cursor:pointer;background:#f0fdf4;color:#10b981;border-right:1.5px solid #e2e8f0;">
+                    Chauffeurs professionnels ({{ count($drivers) }})
+                </button>
+                <button type="button" id="tab-collaborators"
+                    onclick="switchTab('collaborators')"
+                    style="flex:1;padding:.45rem .75rem;font-size:.8rem;font-weight:600;border:none;cursor:pointer;background:#fff;color:#64748b;">
+                    Collaborateurs ({{ count($collaborators) }})
+                </button>
+            </div>
+
+            {{-- Recherche unique --}}
+            <div class="form-group search-box" style="margin-bottom:.65rem;">
                 <svg width="14" height="14" fill="none" viewBox="0 0 24 24">
                     <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2" />
                     <path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="2" />
                 </svg>
-                <input type="text" id="driver-search" placeholder="Rechercher un chauffeur…"
-                    oninput="filterDrivers(this.value)">
+                <input type="text" id="assignee-search" placeholder="Rechercher…" oninput="filterAssignees(this.value)">
             </div>
-            <div id="driver-list" style="max-height:240px;overflow-y:auto;">
-                @foreach ($drivers as $d)
-                    <label class="driver-card {{ old('driver_id', $preDriver?->id) == $d->id ? 'selected' : '' }}"
-                        id="driver-card-{{ $d->id }}">
-                        <input type="radio" name="driver_id" value="{{ $d->id }}" class="sel-input"
-                            @checked(old('driver_id', $preDriver?->id) == $d->id) onchange="selectDriver({{ $d->id }})">
+
+            {{-- Liste chauffeurs --}}
+            <div id="list-drivers" style="max-height:240px;overflow-y:auto;">
+                @forelse ($drivers as $d)
+                    <div class="driver-card {{ old('driver_id', $preDriver?->id) == $d->id ? 'selected' : '' }}"
+                         id="driver-card-{{ $d->id }}"
+                         onclick="selectAssignee('driver', {{ $d->id }})">
                         @if ($d->avatar)
                             <img src="{{ Storage::url($d->avatar) }}"
-                                style="width:34px;height:34px;border-radius:50%;object-fit:cover;flex-shrink:0;"
-                                alt="">
+                                style="width:34px;height:34px;border-radius:50%;object-fit:cover;flex-shrink:0;" alt="">
                         @else
-                            <div
-                                style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;color:#fff;flex-shrink:0;">
+                            <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;color:#fff;flex-shrink:0;">
                                 {{ strtoupper(substr($d->full_name, 0, 2)) }}
                             </div>
                         @endif
                         <div style="flex:1;">
                             <div style="font-weight:600;font-size:.84rem;color:#0f172a;">{{ $d->full_name }}</div>
-                            <div style="font-size:.74rem;color:#94a3b8;">{{ $d->matricule }} ·
-                                {{ implode(', ', (array) $d->license_categories) }}</div>
+                            <div style="font-size:.74rem;color:#94a3b8;">{{ $d->matricule }} · {{ implode(', ', (array) $d->license_categories) }}</div>
                         </div>
                         @if ($d->activeAssignment)
-                            <span
-                                style="font-size:.7rem;background:#fffbeb;color:#92400e;padding:.15rem .45rem;border-radius:99px;font-weight:600;flex-shrink:0;">En
-                                mission</span>
+                            <span style="font-size:.7rem;background:#fffbeb;color:#92400e;padding:.15rem .45rem;border-radius:99px;font-weight:600;flex-shrink:0;">En mission</span>
                         @endif
-                    </label>
-                @endforeach
+                    </div>
+                @empty
+                    <div style="text-align:center;padding:1.5rem;color:#94a3b8;font-size:.82rem;">Aucun chauffeur actif.</div>
+                @endforelse
             </div>
+
+            {{-- Liste collaborateurs --}}
+            <div id="list-collaborators" style="max-height:240px;overflow-y:auto;display:none;">
+                @forelse ($collaborators as $u)
+                    <div class="driver-card {{ old('user_id') == $u->id ? 'selected' : '' }}"
+                         id="collab-card-{{ $u->id }}"
+                         onclick="selectAssignee('user', {{ $u->id }})">
+                        <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#4f46e5);display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;color:#fff;flex-shrink:0;">
+                            {{ strtoupper(substr($u->name, 0, 2)) }}
+                        </div>
+                        <div style="flex:1;">
+                            <div style="font-weight:600;font-size:.84rem;color:#0f172a;">{{ $u->name }}</div>
+                            <div style="font-size:.74rem;color:#94a3b8;">{{ $u->department ?? $u->email }}</div>
+                        </div>
+                        <span style="font-size:.68rem;background:#ede9fe;color:#5b21b6;padding:.15rem .45rem;border-radius:99px;font-weight:600;flex-shrink:0;">Collaborateur</span>
+                    </div>
+                @empty
+                    <div style="text-align:center;padding:1.5rem;color:#94a3b8;font-size:.82rem;">Aucun collaborateur.</div>
+                @endforelse
+            </div>
+
             @error('driver_id')
                 <div class="invalid-msg" style="margin-top:.4rem;">{{ $message }}</div>
             @enderror
@@ -517,11 +558,38 @@
         if (lbl) lbl.classList.add('selected');
     }
 
-    // ── Sélection chauffeur ────────────────────────────────────────────────────
-    function selectDriver(id) {
+    // ── Onglets chauffeurs / collaborateurs ───────────────────────────────────
+    let currentTab = '{{ old("user_id") ? "collaborators" : "drivers" }}';
+
+    function switchTab(tab) {
+        currentTab = tab;
+        const isDrivers = tab === 'drivers';
+        document.getElementById('list-drivers').style.display      = isDrivers ? '' : 'none';
+        document.getElementById('list-collaborators').style.display = isDrivers ? 'none' : '';
+        document.getElementById('tab-drivers').style.background      = isDrivers ? '#f0fdf4' : '#fff';
+        document.getElementById('tab-drivers').style.color           = isDrivers ? '#10b981' : '#64748b';
+        document.getElementById('tab-collaborators').style.background = isDrivers ? '#fff' : '#ede9fe';
+        document.getElementById('tab-collaborators').style.color      = isDrivers ? '#64748b' : '#5b21b6';
+        document.getElementById('assignee-search').value = '';
+        filterAssignees('');
+    }
+
+    // ── Sélection conducteur ──────────────────────────────────────────────────
+    function selectAssignee(type, id) {
+        // Effacer toutes les sélections
         document.querySelectorAll('.driver-card').forEach(c => c.classList.remove('selected'));
-        const card = document.getElementById('driver-card-' + id);
+        // Mettre en surbrillance la carte sélectionnée
+        const cardId = type === 'driver' ? 'driver-card-' + id : 'collab-card-' + id;
+        const card = document.getElementById(cardId);
         if (card) card.classList.add('selected');
+        // Mettre à jour les champs cachés
+        if (type === 'driver') {
+            document.getElementById('field-driver-id').value = id;
+            document.getElementById('field-user-id').value   = '';
+        } else {
+            document.getElementById('field-driver-id').value = '';
+            document.getElementById('field-user-id').value   = id;
+        }
     }
 
     // ── Sélection véhicule ─────────────────────────────────────────────────────
@@ -531,12 +599,12 @@
         if (card) card.classList.add('selected');
     }
 
-    // ── Recherche chauffeur ────────────────────────────────────────────────────
-    function filterDrivers(q) {
+    // ── Recherche conducteur ───────────────────────────────────────────────────
+    function filterAssignees(q) {
         q = q.toLowerCase();
-        document.querySelectorAll('#driver-list .driver-card').forEach(card => {
-            const text = card.textContent.toLowerCase();
-            card.style.display = text.includes(q) ? '' : 'none';
+        const listId = currentTab === 'drivers' ? '#list-drivers .driver-card' : '#list-collaborators .driver-card';
+        document.querySelectorAll(listId).forEach(card => {
+            card.style.display = card.textContent.toLowerCase().includes(q) ? '' : 'none';
         });
     }
 
@@ -548,4 +616,7 @@
             card.style.display = text.includes(q) ? '' : 'none';
         });
     }
+
+    // Initialiser l'onglet actif au chargement
+    document.addEventListener('DOMContentLoaded', () => switchTab(currentTab));
 </script>

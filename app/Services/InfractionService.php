@@ -39,58 +39,83 @@ class InfractionService
      */
     public function identifyDriver(int $vehicleId, Carbon $datetime): array
     {
-        // ── 1. Cherche dans les affectations ────────────────────────────────
-        $assignment = Assignment::where('vehicle_id', $vehicleId)
-            ->whereIn('status', ['in_progress', 'completed'])
+        // Closure commune : la plage de l'affectation couvre $datetime
+        $withinPeriod = function (Builder $q) use ($datetime) {
+            $q->where(function (Builder $inner) use ($datetime) {
+                $inner->whereNotNull('datetime_end_actual')
+                      ->where('datetime_end_actual', '>=', $datetime);
+            })->orWhere(function (Builder $inner) use ($datetime) {
+                $inner->whereNull('datetime_end_actual')
+                      ->where('datetime_end_planned', '>=', $datetime);
+            });
+        };
+
+        // ── 1. Mission ponctuelle en cours ou terminée ──────────────────────
+        //    Priorité maximale : quelqu'un avait pris le véhicule à cette date.
+        $ponctual = Assignment::where('vehicle_id', $vehicleId)
+            ->whereIn('status', ['confirmed', 'in_progress', 'completed'])
+            ->whereIn('type', ['mission', 'daily', 'replacement', 'trial'])
             ->where('datetime_start', '<=', $datetime)
-            ->where(function (Builder $q) use ($datetime) {
-                $q->where(function (Builder $inner) use ($datetime) {
-                    $inner->whereNotNull('datetime_end_actual')
-                          ->where('datetime_end_actual', '>=', $datetime);
-                })->orWhere(function (Builder $inner) use ($datetime) {
-                    $inner->whereNull('datetime_end_actual')
-                          ->where('datetime_end_planned', '>=', $datetime);
-                });
-            })
+            ->where($withinPeriod)
             ->orderByDesc('datetime_start')
             ->first();
 
-        if ($assignment) {
+        if ($ponctual) {
             return [
-                'driver_id' => $assignment->driver_id,
-                'user_id'   => null,
-                'source'    => 'assignment',
+                'driver_id'  => $ponctual->driver_id,
+                'user_id'    => $ponctual->user_id,
+                'source'     => 'assignment',
+                'is_permanent' => false,
             ];
         }
 
-        // ── 2. Cherche dans les demandes de véhicule ────────────────────────
+        // ── 2. Demande de véhicule (collaborateur) ──────────────────────────
+        //    Vérifie avant le permanent : une demande ponctuelle prime.
         $request = VehicleRequest::where('vehicle_id', $vehicleId)
             ->whereIn('status', ['approved', 'confirmed', 'in_progress', 'completed'])
             ->where('datetime_start', '<=', $datetime)
-            ->where(function (Builder $q) use ($datetime) {
-                $q->where(function (Builder $inner) use ($datetime) {
-                    $inner->whereNotNull('datetime_end_actual')
-                          ->where('datetime_end_actual', '>=', $datetime);
-                })->orWhere(function (Builder $inner) use ($datetime) {
-                    $inner->whereNull('datetime_end_actual')
-                          ->where('datetime_end_planned', '>=', $datetime);
-                });
-            })
+            ->where($withinPeriod)
             ->orderByDesc('datetime_start')
             ->first();
 
         if ($request) {
             return [
-                'driver_id' => null,
-                'user_id'   => $request->requester_id,
-                'source'    => 'request',
+                'driver_id'    => null,
+                'user_id'      => $request->requester_id,
+                'source'       => 'request',
+                'is_permanent' => false,
+            ];
+        }
+
+        // ── 3. Affectation permanente (fallback) ────────────────────────────
+        //    Le véhicule a un conducteur attitré ; c'est lui le responsable
+        //    par défaut, mais l'opérateur peut le remplacer.
+        $permanent = Assignment::where('vehicle_id', $vehicleId)
+            ->whereIn('status', ['confirmed', 'in_progress'])
+            ->where('type', 'permanent')
+            ->where('datetime_start', '<=', $datetime)
+            ->where(function (Builder $q) use ($datetime) {
+                // Affectation permanente encore active à $datetime
+                $q->whereNull('datetime_end_actual')
+                  ->where('datetime_end_planned', '>=', $datetime);
+            })
+            ->orderByDesc('datetime_start')
+            ->first();
+
+        if ($permanent) {
+            return [
+                'driver_id'    => $permanent->driver_id,
+                'user_id'      => $permanent->user_id,
+                'source'       => 'permanent',
+                'is_permanent' => true,
             ];
         }
 
         return [
-            'driver_id' => null,
-            'user_id'   => null,
-            'source'    => 'unknown',
+            'driver_id'    => null,
+            'user_id'      => null,
+            'source'       => 'unknown',
+            'is_permanent' => false,
         ];
     }
 

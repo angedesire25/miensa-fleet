@@ -18,6 +18,12 @@
 /public/storage
 /storage/*.key
 /storage/pail
+/storage/app/public/settings
+/storage/app/public/assignments
+/storage/app/public/drivers
+/storage/app/public/vehicles
+/storage/app/public/incidents
+/storage/app/public/inspections
 /vendor
 _ide_helper.php
 Homestead.json

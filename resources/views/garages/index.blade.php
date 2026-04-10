@@ -29,7 +29,7 @@
 </style>
 
 {{-- Statistiques --}}
-<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem;">
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem;">
     <div class="stat-card">
         <div class="stat-icon" style="background:#eff6ff;">
             <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke="#3b82f6" stroke-width="1.8"/><polyline points="9,22 9,12 15,12 15,22" stroke="#3b82f6" stroke-width="1.8"/></svg>
@@ -48,23 +48,32 @@
         </div>
         <div><div class="stat-val" style="color:#f59e0b;">{{ $stats['en_attente'] }}</div><div class="stat-lbl">En attente</div></div>
     </div>
+    <div class="stat-card" style="{{ $showArchived ? 'border-color:#f59e0b;background:#fffbeb;' : '' }}">
+        <div class="stat-icon" style="background:{{ $showArchived ? '#fef3c7' : '#fff7ed' }};">
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M21 8v13H3V8" stroke="#f59e0b" stroke-width="1.8" stroke-linecap="round"/><path d="M23 3H1v5h22V3z" stroke="#f59e0b" stroke-width="1.8"/><path d="M10 12h4" stroke="#f59e0b" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div><div class="stat-val" style="color:#d97706;">{{ $stats['archived'] }}</div><div class="stat-lbl">Archivés</div></div>
+    </div>
 </div>
 
 <div class="card">
     <div class="card-head">
-        <span class="card-title">Liste des garages</span>
+        <span class="card-title">{{ $showArchived ? 'Garages archivés' : 'Liste des garages' }}</span>
+        @if(!$showArchived)
         @can('garages.create')
         <a href="{{ route('garages.create') }}" class="btn btn-primary">
             <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
             Ajouter un garage
         </a>
         @endcan
+        @endif
     </div>
 
     {{-- Filtres --}}
     <div style="padding:1rem 1.25rem;border-bottom:1px solid #f1f5f9;">
         <form method="GET" class="filters-bar">
             <input type="text" name="q" value="{{ request('q') }}" placeholder="Nom, ville, contact…" class="filter-input" style="min-width:200px;">
+            @if(!$showArchived)
             <select name="type" class="filter-input">
                 <option value="all">Tous types</option>
                 <option value="general"     @selected(request('type')==='general')>Général</option>
@@ -80,8 +89,13 @@
                 <option value="1" @selected(request('approved')==='1')>Approuvés</option>
                 <option value="0" @selected(request('approved')==='0')>Non approuvés</option>
             </select>
+            @endif
+            <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;cursor:pointer;padding:.4rem .75rem;border-radius:.45rem;border:1.5px solid {{ $showArchived ? '#f59e0b' : '#e2e8f0' }};color:{{ $showArchived ? '#b45309' : '#64748b' }};background:{{ $showArchived ? '#fffbeb' : '#fff' }};">
+                <input type="checkbox" name="archived" value="1" onchange="this.form.submit()" {{ $showArchived ? 'checked' : '' }} style="accent-color:#f59e0b;">
+                Archives
+            </label>
             <button type="submit" class="btn btn-ghost">Filtrer</button>
-            @if(request()->anyFilled(['q','type','approved']))
+            @if(request()->anyFilled(['q','type','approved','archived']))
                 <a href="{{ route('garages.index') }}" class="btn btn-ghost" style="color:#ef4444;">Effacer</a>
             @endif
         </form>
@@ -101,15 +115,28 @@
             'specialized' => 'Spécialisé',
         ];
         @endphp
-        <div class="garage-card">
+        <div class="garage-card" style="{{ $showArchived ? 'opacity:.7;border-color:#fde68a;' : '' }}">
             <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem;margin-bottom:.75rem;">
                 <div>
+                    @if(!$showArchived)
                     <a href="{{ route('garages.show', $garage) }}" style="font-weight:700;color:#0f172a;text-decoration:none;font-size:.925rem;">{{ $garage->name }}</a>
+                    @else
+                    <span style="font-weight:700;color:#0f172a;font-size:.925rem;">{{ $garage->name }}</span>
+                    @endif
                     <div style="font-size:.78rem;color:#64748b;margin-top:.1rem;">{{ $typeLabels[$garage->type] ?? $garage->type }}</div>
                 </div>
+                @if($showArchived)
+                <div>
+                    <span class="badge" style="background:#fef3c7;color:#b45309;">Archivé</span>
+                    @if($garage->deleted_at)
+                    <div style="font-size:.7rem;color:#94a3b8;margin-top:.2rem;">{{ $garage->deleted_at->isoFormat('D MMM YYYY') }}</div>
+                    @endif
+                </div>
+                @else
                 <span class="badge" style="{{ $garage->is_approved ? 'background:#f0fdf4;color:#166534;' : 'background:#fef3c7;color:#92400e;' }}">
                     {{ $garage->is_approved ? 'Approuvé' : 'En attente' }}
                 </span>
+                @endif
             </div>
 
             @if($garage->city || $garage->address)
@@ -126,8 +153,7 @@
             </div>
             @endif
 
-            {{-- Note --}}
-            @if($garage->rating)
+            @if(!$showArchived && $garage->rating)
             <div style="margin-bottom:.5rem;">
                 @for($i=1;$i<=5;$i++)
                     <span class="{{ $i <= $garage->rating ? 'star' : 'star empty' }}">★</span>
@@ -135,9 +161,32 @@
             </div>
             @endif
 
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:.75rem;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:.75rem;gap:.4rem;flex-wrap:wrap;">
                 <span style="font-size:.75rem;color:#94a3b8;">{{ $garage->repairs_count }} réparation(s)</span>
-                <a href="{{ route('garages.show', $garage) }}" class="btn btn-ghost" style="padding:.3rem .65rem;font-size:.78rem;">Voir</a>
+                @if($showArchived)
+                    @if(auth()->user()->hasAnyRole(['super_admin', 'admin']))
+                    <div style="display:flex;gap:.4rem;">
+                        <form method="POST" action="{{ route('garages.restore', $garage->id) }}" style="display:inline;">
+                            @csrf
+                            <button type="submit" class="btn btn-ghost" style="padding:.3rem .65rem;font-size:.78rem;color:#d97706;border-color:#f59e0b;">
+                                <svg width="12" height="12" fill="none" viewBox="0 0 24 24"><path d="M3 12a9 9 0 109-9 9 9 0 00-9.26 9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M3 3v5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                Restaurer
+                            </button>
+                        </form>
+                        <form method="POST" action="{{ route('garages.force-destroy', $garage->id) }}" style="display:inline;"
+                              data-confirm="Supprimer définitivement le garage « {{ addslashes($garage->name) }} » ? Cette action est irréversible."
+                              data-title="Suppression définitive" data-btn-text="Supprimer" data-btn-color="#dc2626">
+                            @csrf @method('DELETE')
+                            <button type="submit" class="btn btn-ghost" style="padding:.3rem .65rem;font-size:.78rem;color:#dc2626;border-color:#fca5a5;">
+                                <svg width="12" height="12" fill="none" viewBox="0 0 24 24"><polyline points="3,6 5,6 21,6" stroke="currentColor" stroke-width="2"/><path d="M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                                Supprimer
+                            </button>
+                        </form>
+                    </div>
+                    @endif
+                @else
+                    <a href="{{ route('garages.show', $garage) }}" class="btn btn-ghost" style="padding:.3rem .65rem;font-size:.78rem;">Voir</a>
+                @endif
             </div>
         </div>
         @empty

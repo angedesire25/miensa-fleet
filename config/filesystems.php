@@ -40,7 +40,9 @@ return [
 
         'public' => [
             'driver' => 'local',
-            'root' => storage_path('app/public'),
+            // En production : STORAGE_PUBLIC_PATH=/var/www/miensa-fleet-uploads
+            // En développement : laisse vide → utilise storage/app/public par défaut
+            'root' => env('STORAGE_PUBLIC_PATH', storage_path('app/public')),
             'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
             'visibility' => 'public',
             'throw' => false,
@@ -74,7 +76,8 @@ return [
     */
 
     'links' => [
-        public_path('storage') => storage_path('app/public'),
+        // Le symlink public/storage pointe vers le même dossier que le disk 'public'
+        public_path('storage') => env('STORAGE_PUBLIC_PATH', storage_path('app/public')),
     ],
 
 ];

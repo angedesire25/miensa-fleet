@@ -21,7 +21,11 @@ class IncidentController extends Controller
 
     public function index(Request $request): View
     {
-        $query = Incident::with(['vehicle', 'driver', 'user', 'latestRepair.garage']);
+        $showArchived = $request->boolean('archived');
+
+        $query = $showArchived
+            ? Incident::onlyTrashed()->with(['vehicle', 'driver', 'user', 'latestRepair.garage'])
+            : Incident::with(['vehicle', 'driver', 'user', 'latestRepair.garage']);
 
         if ($request->filled('q')) {
             $q = $request->q;
@@ -33,15 +37,15 @@ class IncidentController extends Controller
             });
         }
 
-        if ($request->filled('status') && $request->status !== 'all') {
+        if (!$showArchived && $request->filled('status') && $request->status !== 'all') {
             $query->where('status', $request->status);
         }
 
-        if ($request->filled('severity') && $request->severity !== 'all') {
+        if (!$showArchived && $request->filled('severity') && $request->severity !== 'all') {
             $query->where('severity', $request->severity);
         }
 
-        if ($request->filled('type') && $request->type !== 'all') {
+        if (!$showArchived && $request->filled('type') && $request->type !== 'all') {
             $query->where('type', $request->type);
         }
 
@@ -57,11 +61,12 @@ class IncidentController extends Controller
             'au_garage' => Incident::where('status', 'at_garage')->count(),
             'repares'   => Incident::where('status', 'repaired')->count(),
             'graves'    => Incident::whereIn('severity', ['major', 'total_loss'])->count(),
+            'archived'  => Incident::onlyTrashed()->count(),
         ];
 
         $vehicles = Vehicle::orderBy('brand')->orderBy('model')->get();
 
-        return view('incidents.index', compact('incidents', 'stats', 'vehicles'));
+        return view('incidents.index', compact('incidents', 'stats', 'vehicles', 'showArchived'));
     }
 
     // ── Création ───────────────────────────────────────────────────────────
@@ -258,7 +263,24 @@ class IncidentController extends Controller
         $incident->delete();
 
         return redirect()->route('incidents.index')
-                         ->with('swal_success', "Sinistre #{$id} supprimé.");
+                         ->with('swal_success', "Sinistre #{$id} archivé.");
+    }
+
+    public function restore(int $id): RedirectResponse
+    {
+        $incident = Incident::onlyTrashed()->findOrFail($id);
+        $incident->restore();
+        return redirect()->route('incidents.index')
+                         ->with('swal_success', "Sinistre #{$id} restauré.");
+    }
+
+    public function forceDestroy(int $id): RedirectResponse
+    {
+        abort_unless(auth()->user()->hasAnyRole(['super_admin', 'admin']), 403);
+        $incident = Incident::onlyTrashed()->findOrFail($id);
+        $incident->forceDelete();
+        return redirect()->route('incidents.index', ['archived' => 1])
+                         ->with('swal_success', "Sinistre #{$id} supprimé définitivement.");
     }
 
     // ── Helpers privés ─────────────────────────────────────────────────────

@@ -215,6 +215,60 @@
 
         <hr style="border:none;border-top:1px solid #f1f5f9;margin:0;">
 
+        {{-- Visite médicale d'aptitude --}}
+        <div>
+            <div style="font-size:.8rem;font-weight:700;color:#374151;margin-bottom:.6rem;display:flex;align-items:center;gap:.4rem;">
+                <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#ef4444;"></span>
+                Visite médicale d'aptitude
+                <span style="margin-left:.3rem;font-size:.7rem;font-weight:500;color:#ef4444;">obligatoire pour les affectations</span>
+                @if($isEdit)
+                    @php $existingMedical = $driver->documents->firstWhere('type','medical_fitness'); @endphp
+                    @if($existingMedical?->file_path)
+                        <a href="{{ Storage::url($existingMedical->file_path) }}" target="_blank"
+                           style="margin-left:.5rem;font-size:.72rem;font-weight:600;color:#10b981;text-decoration:none;border:1px solid #bbf7d0;background:#f0fdf4;padding:.1rem .5rem;border-radius:99px;">
+                            Voir fichier actuel ↗
+                        </a>
+                    @endif
+                @endif
+            </div>
+            <div class="form-grid form-grid-3">
+                <div class="form-group">
+                    <label class="form-label">Date de la visite</label>
+                    <input type="date" name="medical_issue_date"
+                           value="{{ old('medical_issue_date', isset($existingMedical) ? $existingMedical->issue_date?->format('Y-m-d') : '') }}"
+                           class="form-input">
+                    @error('medical_issue_date')<p class="form-error">{{ $message }}</p>@enderror
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Date d'expiration</label>
+                    <input type="date" name="medical_expiry_date"
+                           value="{{ old('medical_expiry_date', isset($existingMedical) ? $existingMedical->expiry_date?->format('Y-m-d') : '') }}"
+                           class="form-input">
+                    @error('medical_expiry_date')<p class="form-error">{{ $message }}</p>@enderror
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Résultat</label>
+                    <select name="medical_result" class="form-input">
+                        <option value="fit" @selected(old('medical_result', isset($existingMedical) ? $existingMedical->medical_result : 'fit') === 'fit')>Apte</option>
+                        <option value="fit_with_restrictions" @selected(old('medical_result', isset($existingMedical) ? $existingMedical->medical_result : '') === 'fit_with_restrictions')>Apte avec restrictions</option>
+                        <option value="unfit" @selected(old('medical_result', isset($existingMedical) ? $existingMedical->medical_result : '') === 'unfit')>Inapte</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group" style="margin-top:.75rem;">
+                <label class="form-label">Certificat médical <small style="color:#94a3b8;">(PDF ou image)</small></label>
+                <label style="display:inline-flex;align-items:center;gap:.5rem;padding:.5rem .9rem;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:.45rem;cursor:pointer;font-size:.82rem;font-weight:600;color:#374151;width:fit-content;">
+                    <svg width="13" height="13" fill="none" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    <span id="medical-file-label">Choisir un fichier</span>
+                    <input type="file" name="medical_file" accept=".pdf,image/jpeg,image/png"
+                           style="display:none;" onchange="updateFileLabel(this,'medical-file-label')">
+                </label>
+                @error('medical_file')<p class="form-error">{{ $message }}</p>@enderror
+            </div>
+        </div>
+
+        <hr style="border:none;border-top:1px solid #f1f5f9;margin:0;">
+
         {{-- CNI --}}
         <div>
             <div style="font-size:.8rem;font-weight:700;color:#374151;margin-bottom:.6rem;display:flex;align-items:center;gap:.4rem;">
@@ -360,6 +414,92 @@ function toggleSuspensionReason() {
         @error('notes')<p class="form-error">{{ $message }}</p>@enderror
     </div>
 </div>
+
+{{-- Compte d'accès (création uniquement) ──────────────────────────────── --}}
+@unless($isEdit)
+<div class="form-card" id="account-card" style="border-color:#e2e8f0;">
+    <div class="form-head" style="cursor:pointer;user-select:none;" onclick="toggleAccountSection()">
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" stroke="#64748b" stroke-width="2"/><path d="M7 11V7a5 5 0 0110 0v4" stroke="#64748b" stroke-width="2" stroke-linecap="round"/></svg>
+        <span class="form-head-title">Compte d'accès</span>
+        <span style="margin-left:auto;font-size:.75rem;color:#64748b;" id="account-toggle-label">Optionnel — cliquez pour activer</span>
+        <input type="checkbox" name="create_account" id="create-account-cb" value="1"
+               {{ old('create_account') ? 'checked' : '' }}
+               style="width:16px;height:16px;accent-color:#10b981;cursor:pointer;"
+               onclick="event.stopPropagation();toggleAccountSection()">
+    </div>
+    <div id="account-fields" style="{{ old('create_account') ? '' : 'display:none;' }}padding:1.25rem 1.5rem;border-top:1px solid #f1f5f9;">
+        <div style="padding:.6rem .85rem;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:.5rem;font-size:.8rem;color:#166534;margin-bottom:1rem;display:flex;gap:.5rem;align-items:flex-start;">
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" style="flex-shrink:0;margin-top:.05rem;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="currentColor" stroke-width="2"/></svg>
+            Un compte <strong>Chauffeur</strong> sera créé et lié à ce profil. Le mot de passe provisoire sera affiché une seule fois après l'enregistrement.
+        </div>
+        <div class="form-grid form-grid-2">
+            <div class="form-group">
+                <label class="form-label">Email du compte <span class="req">*</span></label>
+                <input type="email" name="account_email" id="account-email"
+                       value="{{ old('account_email') }}"
+                       class="form-input {{ $errors->has('account_email') ? 'border-red-400' : '' }}"
+                       placeholder="chauffeur@entreprise.ci">
+                @error('account_email')<p class="form-error">{{ $message }}</p>@enderror
+                <p style="font-size:.72rem;color:#64748b;margin-top:.15rem;">Doit être différent d'un compte existant.</p>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Mot de passe provisoire</label>
+                <div style="position:relative;">
+                    <input type="text" id="account-password-preview" class="form-input" readonly
+                           style="font-family:monospace;background:#f8fafc;padding-right:2.5rem;"
+                           value="{{ old('account_password', 'Fleet@' . rand(1000,9999)) }}">
+                    <button type="button" onclick="regeneratePassword()"
+                            title="Regénérer"
+                            style="position:absolute;right:.5rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#64748b;">
+                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M23 4v6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M1 20v-6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    </button>
+                </div>
+                <input type="hidden" name="account_password" id="account-password-hidden"
+                       value="{{ old('account_password', 'Fleet@' . rand(1000,9999)) }}">
+                <p style="font-size:.72rem;color:#64748b;margin-top:.15rem;">Le chauffeur devra le changer à sa première connexion.</p>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+function toggleAccountSection() {
+    const cb     = document.getElementById('create-account-cb');
+    const fields = document.getElementById('account-fields');
+    const label  = document.getElementById('account-toggle-label');
+    const card   = document.getElementById('account-card');
+    if (cb.checked) {
+        fields.style.display = '';
+        label.textContent    = 'Activé — un compte sera créé';
+        card.style.borderColor = '#10b981';
+        // Pré-remplir l'email depuis le champ email du chauffeur
+        const driverEmail = document.querySelector('input[name="email"]');
+        const accountEmail = document.getElementById('account-email');
+        if (driverEmail && driverEmail.value && !accountEmail.value) {
+            accountEmail.value = driverEmail.value;
+        }
+    } else {
+        fields.style.display = 'none';
+        label.textContent    = 'Optionnel — cliquez pour activer';
+        card.style.borderColor = '#e2e8f0';
+    }
+}
+function regeneratePassword() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    let pwd = 'Fleet@';
+    for (let i = 0; i < 4; i++) pwd += Math.floor(Math.random() * 10);
+    document.getElementById('account-password-preview').value = pwd;
+    document.getElementById('account-password-hidden').value  = pwd;
+}
+// Initialisation
+(function() {
+    const cb = document.getElementById('create-account-cb');
+    if (cb && cb.checked) {
+        document.getElementById('account-card').style.borderColor = '#10b981';
+        document.getElementById('account-toggle-label').textContent = 'Activé — un compte sera créé';
+    }
+})();
+</script>
+@endunless
 
 {{-- Boutons ──────────────────────────────────────────────────────────── --}}
 <div style="display:flex;gap:.75rem;justify-content:flex-end;padding:.25rem 0 1rem;">

@@ -1,7 +1,9 @@
 <?php
 
+use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\AssignmentController;
+use App\Http\Controllers\CleaningController;
 use App\Http\Controllers\AlertController;
 use App\Http\Controllers\GarageController;
 use App\Http\Controllers\IncidentController;
@@ -84,6 +86,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permission:drivers.edit')->post('chauffeurs/{driver}/statut', [DriverController::class, 'toggleStatus'])->name('drivers.toggle-status');
     Route::middleware('permission:drivers.delete')->delete('chauffeurs/{driver}', [DriverController::class, 'destroy'])->name('drivers.destroy');
     Route::middleware('role:super_admin|admin')->delete('chauffeurs/{id}/supprimer-definitivement', [DriverController::class, 'forceDestroy'])->name('drivers.force-destroy');
+    Route::middleware('role:super_admin|admin')->post('chauffeurs/{driver}/creer-compte', [DriverController::class, 'createAccount'])->name('drivers.create-account');
 
     // ── Affectations ───────────────────────────────────────────────────────
     Route::middleware('permission:assignments.view')->get('affectations', [AssignmentController::class, 'index'])->name('assignments.index');
@@ -97,6 +100,8 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permission:assignments.edit')->post('affectations/{assignment}/terminer', [AssignmentController::class, 'complete'])->name('assignments.complete');
     Route::middleware('permission:assignments.edit')->post('affectations/{assignment}/annuler', [AssignmentController::class, 'cancel'])->name('assignments.cancel');
     Route::middleware('permission:assignments.delete')->delete('affectations/{assignment}', [AssignmentController::class, 'destroy'])->name('assignments.destroy');
+    Route::middleware('permission:assignments.delete')->post('affectations/{id}/restaurer', [AssignmentController::class, 'restore'])->name('assignments.restore');
+    Route::middleware('permission:assignments.delete')->delete('affectations/{id}/supprimer-definitif', [AssignmentController::class, 'forceDestroy'])->name('assignments.force-destroy');
 
     // ── Demandes de véhicule ────────────────────────────────────────────────
     Route::middleware('permission:vehicle_requests.view')->get('demandes', [VehicleRequestController::class, 'index'])->name('requests.index');
@@ -110,6 +115,9 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permission:vehicle_requests.edit')->post('demandes/{vehicleRequest}/demarrer', [VehicleRequestController::class, 'start'])->name('requests.start');
     Route::middleware('permission:vehicle_requests.edit')->post('demandes/{vehicleRequest}/terminer', [VehicleRequestController::class, 'complete'])->name('requests.complete');
     Route::middleware('permission:vehicle_requests.edit')->post('demandes/{vehicleRequest}/annuler', [VehicleRequestController::class, 'cancel'])->name('requests.cancel');
+    Route::delete('demandes/{vehicleRequest}/archiver', [VehicleRequestController::class, 'destroy'])->name('requests.destroy')->middleware('auth');
+    Route::post('demandes/{id}/restaurer', [VehicleRequestController::class, 'restore'])->name('requests.restore')->middleware('auth');
+    Route::delete('demandes/{id}/supprimer-definitif', [VehicleRequestController::class, 'forceDestroy'])->name('requests.force-destroy')->middleware('auth');
 
     // ── Sinistres ──────────────────────────────────────────────────────────
     Route::middleware('permission:incidents.view')->get('sinistres', [IncidentController::class, 'index'])->name('incidents.index');
@@ -122,6 +130,8 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permission:incidents.edit')->post('sinistres/{incident}/cloturer', [IncidentController::class, 'close'])->name('incidents.close');
     Route::middleware('permission:incidents.edit')->delete('sinistres/{incident}/photo', [IncidentController::class, 'deletePhoto'])->name('incidents.delete-photo');
     Route::middleware('permission:incidents.edit')->delete('sinistres/{incident}', [IncidentController::class, 'destroy'])->name('incidents.destroy');
+    Route::middleware('permission:incidents.edit')->post('sinistres/{id}/restaurer', [IncidentController::class, 'restore'])->name('incidents.restore');
+    Route::middleware('role:super_admin|admin')->delete('sinistres/{id}/supprimer-definitivement', [IncidentController::class, 'forceDestroy'])->name('incidents.force-destroy');
 
     // ── Réparations ────────────────────────────────────────────────────────
     Route::middleware('permission:repairs.view')->get('reparations', [RepairController::class, 'index'])->name('repairs.index');
@@ -131,6 +141,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permission:repairs.edit')->post('reparations/{repair}/statut', [RepairController::class, 'updateStatus'])->name('repairs.update-status');
     Route::middleware('permission:repairs.edit')->post('reparations/{repair}/retour-garage', [RepairController::class, 'returnFromGarage'])->name('repairs.return-from-garage');
     Route::middleware('permission:repairs.edit')->delete('reparations/{repair}/photo', [RepairController::class, 'deletePhoto'])->name('repairs.delete-photo');
+    Route::middleware('permission:repairs.delete')->delete('reparations/{repair}', [RepairController::class, 'destroy'])->name('repairs.destroy');
 
     // ── Garages ────────────────────────────────────────────────────────────
     Route::middleware('permission:garages.view')->get('garages', [GarageController::class, 'index'])->name('garages.index');
@@ -141,6 +152,8 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permission:garages.edit')->put('garages/{garage}', [GarageController::class, 'update'])->name('garages.update');
     Route::middleware('permission:garages.edit')->post('garages/{garage}/approuver', [GarageController::class, 'toggleApproved'])->name('garages.toggle-approved');
     Route::middleware('permission:garages.delete')->delete('garages/{garage}', [GarageController::class, 'destroy'])->name('garages.destroy');
+    Route::middleware('role:super_admin|admin')->post('garages/{id}/restaurer', [GarageController::class, 'restore'])->name('garages.restore');
+    Route::middleware('role:super_admin|admin')->delete('garages/{id}/supprimer-definitivement', [GarageController::class, 'forceDestroy'])->name('garages.force-destroy');
 
     // ── Alertes ────────────────────────────────────────────────────────────
     Route::middleware('permission:alerts.view')->get('alertes', [AlertController::class, 'index'])->name('alerts.index');
@@ -160,6 +173,22 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permission:infractions.edit')->post('infractions/{infraction}/paiement', [InfractionController::class, 'recordPayment'])->name('infractions.record-payment');
     Route::middleware('permission:infractions.edit')->post('infractions/{infraction}/cloturer', [InfractionController::class, 'close'])->name('infractions.close');
     Route::middleware('permission:infractions.edit')->delete('infractions/{infraction}', [InfractionController::class, 'destroy'])->name('infractions.destroy');
+    Route::middleware('role:super_admin|admin')->post('infractions/{id}/restaurer', [InfractionController::class, 'restore'])->name('infractions.restore');
+    Route::middleware('role:super_admin|admin')->delete('infractions/{id}/supprimer-definitivement', [InfractionController::class, 'forceDestroy'])->name('infractions.force-destroy');
+
+    // ── Nettoyage des véhicules ────────────────────────────────────────────
+    Route::middleware('permission:cleanings.view')->get('nettoyages', [CleaningController::class, 'index'])->name('cleanings.index');
+    Route::middleware('permission:cleanings.create')->get('nettoyages/nouveau', [CleaningController::class, 'create'])->name('cleanings.create');
+    Route::middleware('permission:cleanings.create')->post('nettoyages', [CleaningController::class, 'store'])->name('cleanings.store');
+    Route::middleware('permission:cleanings.view')->get('nettoyages/{cleaning}', [CleaningController::class, 'show'])->name('cleanings.show');
+    Route::middleware('permission:cleanings.edit')->get('nettoyages/{cleaning}/modifier', [CleaningController::class, 'edit'])->name('cleanings.edit');
+    Route::middleware('permission:cleanings.edit')->put('nettoyages/{cleaning}', [CleaningController::class, 'update'])->name('cleanings.update');
+    Route::middleware('permission:cleanings.confirm')->post('nettoyages/{cleaning}/confirmer', [CleaningController::class, 'confirm'])->name('cleanings.confirm');
+    Route::middleware('permission:cleanings.edit')->post('nettoyages/{cleaning}/completer', [CleaningController::class, 'complete'])->name('cleanings.complete');
+    Route::middleware('permission:cleanings.edit')->post('nettoyages/{cleaning}/manque', [CleaningController::class, 'markMissed'])->name('cleanings.missed');
+    Route::middleware('permission:cleanings.edit')->post('nettoyages/{cleaning}/annuler', [CleaningController::class, 'cancel'])->name('cleanings.cancel');
+    Route::middleware('permission:cleanings.delete')->delete('nettoyages/{cleaning}', [CleaningController::class, 'destroy'])->name('cleanings.destroy');
+    Route::middleware('permission:cleanings.delete')->post('nettoyages/{id}/restaurer', [CleaningController::class, 'restore'])->name('cleanings.restore');
 
     // ── Notifications in-app ──────────────────────────────────────────────
     Route::post('notifications/mark-all-read', [NotificationController::class, 'markAllRead'])->name('notifications.mark-all-read');
@@ -174,6 +203,12 @@ Route::middleware('auth')->group(function () {
 
     // ── Administration (super_admin + admin uniquement) ─────────────────────
     Route::middleware('role:super_admin|admin')->prefix('admin')->name('admin.')->group(function () {
+
+        // Paramètres de l'application (super_admin uniquement)
+        Route::middleware('role:super_admin')->group(function () {
+            Route::get('parametres', [SettingController::class, 'edit'])->name('settings.edit');
+            Route::post('parametres', [SettingController::class, 'update'])->name('settings.update');
+        });
 
         // Gestion des utilisateurs
         Route::get('utilisateurs', [UserController::class, 'index'])->name('users.index');

@@ -14,6 +14,10 @@
 .stat-lbl{font-size:.75rem;color:#64748b;margin-top:.2rem;}
 .badge{display:inline-flex;align-items:center;gap:.25rem;padding:.18rem .55rem;border-radius:99px;font-size:.7rem;font-weight:600;}
 .btn{padding:.45rem .9rem;border-radius:.45rem;font-size:.82rem;font-weight:600;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:.4rem;text-decoration:none;transition:opacity .15s;}
+.btn-primary{background:linear-gradient(135deg,#10b981,#059669);color:#fff;}
+.btn-primary:hover{opacity:.9;}
+.btn-danger{background:#fee2e2;color:#dc2626;border:1.5px solid #fca5a5;}
+.btn-danger:hover{background:#fecaca;}
 .btn-ghost{background:#f8fafc;color:#374151;border:1.5px solid #e2e8f0;}
 .btn-ghost:hover{background:#f1f5f9;}
 .filters-bar{display:flex;gap:.65rem;flex-wrap:wrap;align-items:flex-end;}
@@ -29,7 +33,7 @@ tr:hover td{background:#f8fafc;}
 </style>
 
 {{-- ── Statistiques ─────────────────────────────────────────────────────── --}}
-<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem;">
+<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:1rem;margin-bottom:1.5rem;">
     <div class="stat-card">
         <div class="stat-icon" style="background:#eff6ff;">
             <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.77 3.77z" stroke="#3b82f6" stroke-width="1.8"/></svg>
@@ -53,6 +57,15 @@ tr:hover td{background:#f8fafc;}
             <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="#ef4444" stroke-width="1.8"/><path d="M12 9v4M12 17h.01" stroke="#ef4444" stroke-width="2" stroke-linecap="round"/></svg>
         </div>
         <div><div class="stat-val" style="color:#ef4444;">{{ $stats['recurrences'] }}</div><div class="stat-lbl">Récurrences</div></div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon" style="background:#f1f5f9;">
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M21 8v13H3V8" stroke="#94a3b8" stroke-width="1.8" stroke-linecap="round"/><path d="M1 3h22v5H1z" stroke="#94a3b8" stroke-width="1.8"/><path d="M10 12h4" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div>
+            <div class="stat-val" style="color:#94a3b8;">{{ $stats['archivees'] }}</div>
+            <div class="stat-lbl">Archivées</div>
+        </div>
     </div>
 </div>
 
@@ -90,8 +103,11 @@ tr:hover td{background:#f8fafc;}
             <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;color:#374151;cursor:pointer;">
                 <input type="checkbox" name="overdue" value="1" @checked(request('overdue')==='1')> En retard (+7j)
             </label>
+            <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;color:#64748b;cursor:pointer;">
+                <input type="checkbox" name="archived" value="1" @checked(request('archived')==='1')> Archivées
+            </label>
             <button type="submit" class="btn btn-ghost">Filtrer</button>
-            @if(request()->anyFilled(['q','status','garage_id','overdue']))
+            @if(request()->anyFilled(['q','status','garage_id','overdue','archived']))
                 <a href="{{ route('repairs.index') }}" class="btn btn-ghost" style="color:#ef4444;">Effacer</a>
             @endif
         </form>
@@ -148,7 +164,10 @@ tr:hover td{background:#f8fafc;}
                         @endif
                     </td>
                     <td style="font-size:.8rem;">{{ $repair->garage?->name ?? '—' }}</td>
-                    <td style="font-size:.8rem;">{{ ucfirst(str_replace('_',' ',$repair->repair_type)) }}</td>
+                    @php
+                        $typeLabels = ['body_repair'=>'Carrosserie','mechanical'=>'Mécanique','electrical'=>'Électrique','tire'=>'Pneus','painting'=>'Peinture','glass'=>'Vitrage','full_service'=>'Révision complète','other'=>'Autre'];
+                    @endphp
+                    <td style="font-size:.8rem;">{{ $typeLabels[$repair->repair_type] ?? ucfirst(str_replace('_',' ',$repair->repair_type)) }}</td>
                     <td style="font-size:.8rem;white-space:nowrap;">{{ $repair->datetime_sent?->format('d/m/Y') ?? '—' }}</td>
                     <td style="font-size:.8rem;">
                         {{ $repair->duration_days !== null ? $repair->duration_days . ' j' : '—' }}
@@ -165,8 +184,24 @@ tr:hover td{background:#f8fafc;}
                     <td style="font-size:.8rem;">
                         {{ $repair->invoice_amount ? number_format($repair->invoice_amount, 0, ',', ' ') . ' FCFA' : '—' }}
                     </td>
-                    <td>
+                    <td style="white-space:nowrap;">
                         <a href="{{ route('repairs.show', $repair) }}" class="btn btn-ghost" style="padding:.3rem .65rem;font-size:.78rem;">Voir</a>
+                        @can('repairs.delete')
+                        @php $canForceDelete = auth()->user()->hasAnyRole(['super_admin', 'admin']); @endphp
+                        @if(!in_array($repair->status, ['sent','diagnosing','repairing','waiting_parts']) || $canForceDelete)
+                        <form method="POST" action="{{ route('repairs.destroy', $repair) }}" style="display:inline;"
+                              data-confirm="{{ in_array($repair->status, ['sent','diagnosing','repairing','waiting_parts']) ? 'Ce véhicule est actuellement en atelier. Supprimer quand même cette réparation ?' : 'Archiver cette réparation ? Elle n\'apparaîtra plus dans la liste principale.' }}"
+                              data-title="{{ in_array($repair->status, ['sent','diagnosing','repairing','waiting_parts']) ? 'Suppression forcée' : 'Archiver la réparation' }}"
+                              data-btn-text="Confirmer"
+                              data-btn-color="#64748b">
+                            @csrf @method('DELETE')
+                            <button type="submit" class="btn btn-ghost" style="padding:.3rem .65rem;font-size:.78rem;color:#64748b;" title="Archiver">
+                                <svg width="12" height="12" fill="none" viewBox="0 0 24 24"><path d="M21 8v13H3V8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M1 3h22v5H1z" stroke="currentColor" stroke-width="2"/><path d="M10 12h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                                Archiver
+                            </button>
+                        </form>
+                        @endif
+                        @endcan
                     </td>
                 </tr>
             @empty

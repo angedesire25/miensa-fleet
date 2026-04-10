@@ -85,7 +85,9 @@ class InspectionController extends Controller
 
         $vehicles = Vehicle::active()->orderBy('brand')->get(['id', 'plate', 'brand', 'model']);
 
-        return view('inspections.index', compact('inspections', 'stats', 'vehicles'));
+        $showArchived = $request->boolean('show_archived');
+
+        return view('inspections.index', compact('inspections', 'stats', 'vehicles', 'showArchived'));
     }
 
     // ── Détail ─────────────────────────────────────────────────────────────

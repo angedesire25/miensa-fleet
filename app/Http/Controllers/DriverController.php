@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Driver;
 use App\Models\DriverDocument;
+use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -18,11 +20,11 @@ class DriverController extends Controller
 
     public function index(Request $request): View
     {
-        $query = Driver::with(['activeAssignment.vehicle', 'preferredVehicle']);
+        $showArchived = $request->boolean('archived');
 
-        if ($request->boolean('avec_archives')) {
-            $query = Driver::withTrashed()->with(['activeAssignment.vehicle', 'preferredVehicle']);
-        }
+        $query = $showArchived
+            ? Driver::onlyTrashed()->with(['activeAssignment.vehicle', 'preferredVehicle'])
+            : Driver::with(['activeAssignment.vehicle', 'preferredVehicle']);
 
         if ($request->filled('q')) {
             $q = $request->q;
@@ -34,7 +36,7 @@ class DriverController extends Controller
             });
         }
 
-        if ($request->filled('status') && $request->status !== 'all') {
+        if (!$showArchived && $request->filled('status') && $request->status !== 'all') {
             $query->where('status', $request->status);
         }
 
@@ -61,7 +63,7 @@ class DriverController extends Controller
                 ->count(),
         ];
 
-        return view('drivers.index', compact('drivers', 'stats'));
+        return view('drivers.index', compact('drivers', 'stats', 'showArchived'));
     }
 
     // ── Détail ─────────────────────────────────────────────────────────────
@@ -77,7 +79,44 @@ class DriverController extends Controller
             'incidents'    => fn($q) => $q->with('vehicle')->latest('datetime_occurred')->limit(10),
         ]);
 
-        return view('drivers.show', compact('driver'));
+        // Compte utilisateur lié (cherche par driver_id ou par email)
+        $linkedUser = User::with('roles')->where('driver_id', $driver->id)->first()
+            ?? User::with('roles')->where('email', $driver->email)->whereNotNull('email')->first();
+
+        return view('drivers.show', compact('driver', 'linkedUser'));
+    }
+
+    /**
+     * Crée un compte utilisateur driver_user pour un profil chauffeur existant.
+     */
+    public function createAccount(Request $request, Driver $driver): RedirectResponse
+    {
+        $request->validate([
+            'account_email'    => 'required|email|max:100|unique:users,email',
+            'account_password' => 'required|string|min:6',
+        ]);
+
+        if (User::where('driver_id', $driver->id)->exists()) {
+            return back()->with('swal_error', 'Ce chauffeur possède déjà un compte utilisateur.');
+        }
+
+        $user = User::create([
+            'name'                => $driver->full_name,
+            'email'               => $request->account_email,
+            'phone'               => $driver->phone,
+            'password'            => Hash::make($request->account_password),
+            'status'              => 'active',
+            'driver_id'           => $driver->id,
+            'email_verified_at'   => now(),
+            'password_changed_at' => null,
+            'created_by'          => Auth::id(),
+        ]);
+        $user->syncRoles(['driver_user']);
+
+        return redirect()->route('drivers.show', $driver)
+            ->with('swal_success', "Compte créé pour {$driver->full_name}.")
+            ->with('new_password', $request->account_password)
+            ->with('new_password_user', $driver->full_name);
     }
 
     // ── Création ───────────────────────────────────────────────────────────
@@ -115,13 +154,30 @@ class DriverController extends Controller
             'national_id_issue_date'   => 'nullable|date',
             'national_id_expiry_date'  => 'nullable|date',
             'national_id_file'         => 'nullable|file|mimes:pdf,jpeg,jpg,png|max:5120',
+            // Visite médicale
+            'medical_issue_date'       => 'nullable|date',
+            'medical_expiry_date'      => 'nullable|date|after_or_equal:medical_issue_date',
+            'medical_result'           => 'nullable|in:fit,fit_with_restrictions,unfit',
+            'medical_file'             => 'nullable|file|mimes:pdf,jpeg,jpg,png|max:5120',
+            // Compte d'accès optionnel
+            'create_account'           => 'nullable|boolean',
+            'account_email'            => 'nullable|required_if:create_account,1|email|max:100|unique:users,email',
+            'account_password'         => 'nullable|required_if:create_account,1|string|min:6',
         ]);
 
         $data['created_by'] = Auth::id();
         $data['status']     = 'active';
+
+        $createAccount   = (bool) ($data['create_account'] ?? false);
+        $accountEmail    = $data['account_email'] ?? null;
+        $accountPassword = $data['account_password'] ?? null;
+
         unset($data['avatar'], $data['license_file'], $data['license_issue_date'],
               $data['national_id_number'], $data['national_id_issue_date'],
-              $data['national_id_expiry_date'], $data['national_id_file']);
+              $data['national_id_expiry_date'], $data['national_id_file'],
+              $data['medical_issue_date'], $data['medical_expiry_date'],
+              $data['medical_result'], $data['medical_file'],
+              $data['create_account'], $data['account_email'], $data['account_password']);
 
         $driver = Driver::create($data);
 
@@ -164,8 +220,54 @@ class DriverController extends Controller
             ]);
         }
 
-        return redirect()->route('drivers.show', $driver)
-                         ->with('swal_success', 'Chauffeur créé avec succès.');
+        // Visite médicale
+        if ($request->filled('medical_issue_date') || $request->filled('medical_expiry_date') || $request->hasFile('medical_file')) {
+            $medPath = $request->hasFile('medical_file')
+                ? $request->file('medical_file')->store("drivers/{$driver->id}/documents", 'public')
+                : null;
+            DriverDocument::create([
+                'driver_id'      => $driver->id,
+                'type'           => 'medical_fitness',
+                'issue_date'     => $request->medical_issue_date ?: null,
+                'expiry_date'    => $request->medical_expiry_date ?: null,
+                'medical_result' => $request->medical_result ?? 'fit',
+                'file_path'      => $medPath,
+                'status'         => 'valid',
+                'created_by'     => Auth::id(),
+            ]);
+        }
+
+        // Créer le compte utilisateur lié si demandé
+        $newUserPassword = null;
+        if ($createAccount && $accountEmail && $accountPassword) {
+            $user = User::create([
+                'name'                => $driver->full_name,
+                'email'               => $accountEmail,
+                'phone'               => $driver->phone,
+                'password'            => Hash::make($accountPassword),
+                'status'              => 'active',
+                'driver_id'           => $driver->id,
+                'email_verified_at'   => now(),
+                'password_changed_at' => null, // Force le changement à la prochaine connexion
+                'created_by'          => Auth::id(),
+            ]);
+            $user->syncRoles(['driver_user']);
+            $newUserPassword = $accountPassword;
+        }
+
+        $msg = 'Chauffeur créé avec succès.';
+        if ($newUserPassword) {
+            $msg .= " Un compte d'accès a été créé (email : {$accountEmail}).";
+        }
+
+        $redirect = redirect()->route('drivers.show', $driver)->with('swal_success', $msg);
+
+        if ($newUserPassword) {
+            $redirect = $redirect->with('new_password', $newUserPassword)
+                                 ->with('new_password_user', $driver->full_name);
+        }
+
+        return $redirect;
     }
 
     // ── Modification ───────────────────────────────────────────────────────
@@ -205,11 +307,18 @@ class DriverController extends Controller
             'national_id_issue_date'   => 'nullable|date',
             'national_id_expiry_date'  => 'nullable|date',
             'national_id_file'         => 'nullable|file|mimes:pdf,jpeg,jpg,png|max:5120',
+            // Visite médicale
+            'medical_issue_date'       => 'nullable|date',
+            'medical_expiry_date'      => 'nullable|date|after_or_equal:medical_issue_date',
+            'medical_result'           => 'nullable|in:fit,fit_with_restrictions,unfit',
+            'medical_file'             => 'nullable|file|mimes:pdf,jpeg,jpg,png|max:5120',
         ]);
 
         unset($data['avatar'], $data['license_file'], $data['license_issue_date'],
               $data['national_id_number'], $data['national_id_issue_date'],
-              $data['national_id_expiry_date'], $data['national_id_file']);
+              $data['national_id_expiry_date'], $data['national_id_file'],
+              $data['medical_issue_date'], $data['medical_expiry_date'],
+              $data['medical_result'], $data['medical_file']);
         $driver->update($data);
 
         if ($request->hasFile('avatar')) {
@@ -263,6 +372,29 @@ class DriverController extends Controller
                 $cniDoc->update($cniData);
             } else {
                 $driver->documents()->create(['type' => 'national_id'] + $cniData);
+            }
+        }
+
+        // Mise à jour / création du document visite médicale
+        if ($request->hasFile('medical_file') || $request->filled('medical_issue_date') || $request->filled('medical_expiry_date')) {
+            $medDoc  = $driver->documents()->where('type', 'medical_fitness')->first();
+            $medPath = $medDoc?->file_path;
+            if ($request->hasFile('medical_file')) {
+                if ($medPath) Storage::disk('public')->delete($medPath);
+                $medPath = $request->file('medical_file')->store("drivers/{$driver->id}/documents", 'public');
+            }
+            $medData = [
+                'issue_date'     => $request->medical_issue_date ?: ($medDoc?->issue_date?->format('Y-m-d')),
+                'expiry_date'    => $request->medical_expiry_date ?: ($medDoc?->expiry_date?->format('Y-m-d')),
+                'medical_result' => $request->medical_result ?? ($medDoc?->medical_result ?? 'fit'),
+                'file_path'      => $medPath,
+                'status'         => 'valid',
+                'created_by'     => Auth::id(),
+            ];
+            if ($medDoc) {
+                $medDoc->update($medData);
+            } else {
+                $driver->documents()->create(['type' => 'medical_fitness'] + $medData);
             }
         }
 

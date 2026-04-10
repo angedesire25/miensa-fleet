@@ -13,7 +13,11 @@ class GarageController extends Controller
 
     public function index(Request $request): View
     {
-        $query = Garage::withCount('repairs');
+        $showArchived = $request->boolean('archived');
+
+        $query = $showArchived
+            ? Garage::onlyTrashed()->withCount('repairs')
+            : Garage::withCount('repairs');
 
         if ($request->filled('q')) {
             $q = $request->q;
@@ -24,23 +28,24 @@ class GarageController extends Controller
             });
         }
 
-        if ($request->filled('type') && $request->type !== 'all') {
+        if (!$showArchived && $request->filled('type') && $request->type !== 'all') {
             $query->where('type', $request->type);
         }
 
-        if ($request->filled('approved')) {
+        if (!$showArchived && $request->filled('approved')) {
             $query->where('is_approved', $request->boolean('approved'));
         }
 
         $garages = $query->orderBy('name')->paginate(15)->withQueryString();
 
         $stats = [
-            'total'    => Garage::count(),
-            'approuves'=> Garage::where('is_approved', true)->count(),
-            'en_attente'=> Garage::where('is_approved', false)->count(),
+            'total'      => Garage::count(),
+            'approuves'  => Garage::where('is_approved', true)->count(),
+            'en_attente' => Garage::where('is_approved', false)->count(),
+            'archived'   => Garage::onlyTrashed()->count(),
         ];
 
-        return view('garages.index', compact('garages', 'stats'));
+        return view('garages.index', compact('garages', 'stats', 'showArchived'));
     }
 
     // ── Création ───────────────────────────────────────────────────────────
@@ -142,6 +147,25 @@ class GarageController extends Controller
         $garage->delete();
 
         return redirect()->route('garages.index')
-                         ->with('swal_success', "Garage \"{$name}\" supprimé.");
+                         ->with('swal_success', "Garage \"{$name}\" archivé.");
+    }
+
+    public function restore(int $id): RedirectResponse
+    {
+        abort_unless(auth()->user()->hasAnyRole(['super_admin', 'admin']), 403);
+        $garage = Garage::onlyTrashed()->findOrFail($id);
+        $garage->restore();
+        return redirect()->route('garages.show', $garage)
+                         ->with('swal_success', "Garage \"{$garage->name}\" restauré.");
+    }
+
+    public function forceDestroy(int $id): RedirectResponse
+    {
+        abort_unless(auth()->user()->hasAnyRole(['super_admin', 'admin']), 403);
+        $garage = Garage::withTrashed()->findOrFail($id);
+        $name   = $garage->name;
+        $garage->forceDelete();
+        return redirect()->route('garages.index', ['archived' => 1])
+                         ->with('swal_success', "Garage \"{$name}\" supprimé définitivement.");
     }
 }

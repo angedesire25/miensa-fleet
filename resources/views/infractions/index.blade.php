@@ -5,26 +5,28 @@
 @section('content')
 @php
     $typeLabels = [
-        'speeding'          => 'Excès de vitesse',
-        'red_light'         => 'Feu rouge',
-        'parking'           => 'Stationnement',
-        'phone_use'         => 'Téléphone',
-        'seatbelt'          => 'Ceinture',
-        'alcohol'           => 'Alcool',
-        'dangerous_driving' => 'Conduite dang.',
-        'overload'          => 'Surcharge',
-        'invalid_documents' => 'Docs invalides',
-        'other'             => 'Autre',
+        'speeding'        => 'Excès de vitesse',
+        'red_light'       => 'Feu rouge',
+        'illegal_parking' => 'Stationnement',
+        'drunk_driving'   => 'Alcool',
+        'phone_use'       => 'Téléphone',
+        'accident'        => 'Accident',
+        'seatbelt'        => 'Ceinture',
+        'overloading'     => 'Surcharge',
+        'other'           => 'Autre',
     ];
     $statusColor = [
-        'open'   => ['bg' => '#f59e0b20', 'color' => '#f59e0b', 'label' => 'Ouverte'],
-        'closed' => ['bg' => '#94a3b820', 'color' => '#94a3b8', 'label' => 'Clôturée'],
+        'open'      => ['bg' => '#f59e0b20', 'color' => '#f59e0b', 'label' => 'Ouverte'],
+        'processed' => ['bg' => '#94a3b820', 'color' => '#94a3b8', 'label' => 'Clôturée'],
+        'contested' => ['bg' => '#3b82f620', 'color' => '#3b82f6', 'label' => 'Contestée'],
+        'archived'  => ['bg' => '#33415520', 'color' => '#64748b', 'label' => 'Archivée'],
     ];
     $paymentColor = [
-        'unpaid'    => ['bg' => '#ef444420', 'color' => '#ef4444', 'label' => 'Impayée'],
-        'paid'      => ['bg' => '#10b98120', 'color' => '#10b981', 'label' => 'Payée'],
-        'contested' => ['bg' => '#f59e0b20', 'color' => '#f59e0b', 'label' => 'Contestée'],
-        'waived'    => ['bg' => '#94a3b820', 'color' => '#94a3b8', 'label' => 'Remise'],
+        'unpaid'           => ['bg' => '#ef444420', 'color' => '#ef4444', 'label' => 'Impayée'],
+        'paid_by_company'  => ['bg' => '#10b98120', 'color' => '#10b981', 'label' => 'Payée (société)'],
+        'charged_to_driver'=> ['bg' => '#8b5cf620', 'color' => '#8b5cf6', 'label' => 'Imputée chauffeur'],
+        'contested'        => ['bg' => '#f59e0b20', 'color' => '#f59e0b', 'label' => 'Contestée'],
+        'waived'           => ['bg' => '#94a3b820', 'color' => '#94a3b8', 'label' => 'Remise'],
     ];
 @endphp
 
@@ -33,9 +35,10 @@
     {{-- En-tête --}}
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap;gap:.75rem;">
         <div>
-            <h1 style="font-size:1.35rem;font-weight:700;color:#f1f5f9;margin:0;">Infractions</h1>
+            <h1 style="font-size:1.35rem;font-weight:700;color:#f1f5f9;margin:0;">{{ $showArchived ? 'Infractions archivées' : 'Infractions' }}</h1>
             <p style="color:#94a3b8;font-size:.85rem;margin:.2rem 0 0;">Suivi des infractions routières de la flotte</p>
         </div>
+        @if(!$showArchived)
         @can('infractions.create')
         <a href="{{ route('infractions.create') }}"
            style="display:inline-flex;align-items:center;gap:.45rem;padding:.55rem 1.1rem;background:#10b981;color:#fff;border-radius:.45rem;text-decoration:none;font-size:.88rem;font-weight:600;">
@@ -43,6 +46,7 @@
             Enregistrer une infraction
         </a>
         @endcan
+        @endif
     </div>
 
     {{-- Statistiques --}}
@@ -63,6 +67,10 @@
             <div style="font-size:.75rem;color:#94a3b8;margin-bottom:.35rem;">Total amendes</div>
             <div style="font-size:1.3rem;font-weight:700;color:#f1f5f9;">{{ number_format($stats['total_amendes'], 0, ',', ' ') }} <span style="font-size:.75rem;color:#94a3b8;">FCFA</span></div>
         </div>
+        <div style="background:{{ $showArchived ? '#292524' : '#1e293b' }};border:1px solid {{ $showArchived ? 'rgba(245,158,11,.5)' : '#334155' }};border-radius:.65rem;padding:1rem 1.25rem;">
+            <div style="font-size:.75rem;color:#94a3b8;margin-bottom:.35rem;">Archivées</div>
+            <div style="font-size:1.6rem;font-weight:700;color:#f59e0b;">{{ $stats['archived'] }}</div>
+        </div>
     </div>
 
     {{-- Filtres --}}
@@ -71,11 +79,13 @@
         <input type="text" name="q" placeholder="Lieu, PV, plaque, conducteur..."
                value="{{ request('q') }}"
                style="flex:1;min-width:180px;background:#1e293b;border:1px solid #475569;border-radius:.4rem;color:#f1f5f9;padding:.4rem .75rem;font-size:.85rem;">
+        @if(!$showArchived)
         <select name="status" style="background:#1e293b;color:#e2e8f0;border:1px solid #475569;border-radius:.4rem;padding:.4rem .75rem;font-size:.85rem;">
             <option value="">Statut</option>
-            <option value="all"    {{ request('status')==='all'    ? 'selected':'' }}>Tous</option>
-            <option value="open"   {{ request('status')==='open'   ? 'selected':'' }}>Ouvertes</option>
-            <option value="closed" {{ request('status')==='closed' ? 'selected':'' }}>Clôturées</option>
+            <option value="all"       {{ request('status')==='all'       ? 'selected':'' }}>Tous</option>
+            <option value="open"      {{ request('status')==='open'      ? 'selected':'' }}>Ouvertes</option>
+            <option value="processed" {{ request('status')==='processed' ? 'selected':'' }}>Clôturées</option>
+            <option value="contested" {{ request('status')==='contested' ? 'selected':'' }}>Contestées</option>
         </select>
         <select name="type" style="background:#1e293b;color:#e2e8f0;border:1px solid #475569;border-radius:.4rem;padding:.4rem .75rem;font-size:.85rem;">
             <option value="">Type</option>
@@ -86,21 +96,28 @@
         </select>
         <select name="payment_status" style="background:#1e293b;color:#e2e8f0;border:1px solid #475569;border-radius:.4rem;padding:.4rem .75rem;font-size:.85rem;">
             <option value="">Paiement</option>
-            <option value="all"       {{ request('payment_status')==='all'       ? 'selected':'' }}>Tous</option>
-            <option value="unpaid"    {{ request('payment_status')==='unpaid'    ? 'selected':'' }}>Impayée</option>
-            <option value="paid"      {{ request('payment_status')==='paid'      ? 'selected':'' }}>Payée</option>
-            <option value="contested" {{ request('payment_status')==='contested' ? 'selected':'' }}>Contestée</option>
+            <option value="all"                {{ request('payment_status')==='all'                ? 'selected':'' }}>Tous</option>
+            <option value="unpaid"             {{ request('payment_status')==='unpaid'             ? 'selected':'' }}>Impayée</option>
+            <option value="paid_by_company"    {{ request('payment_status')==='paid_by_company'    ? 'selected':'' }}>Payée (société)</option>
+            <option value="charged_to_driver"  {{ request('payment_status')==='charged_to_driver'  ? 'selected':'' }}>Imputée chauffeur</option>
+            <option value="contested"          {{ request('payment_status')==='contested'          ? 'selected':'' }}>Contestée</option>
+            <option value="waived"             {{ request('payment_status')==='waived'             ? 'selected':'' }}>Remise</option>
         </select>
+        @endif
         <select name="vehicle_id" style="background:#1e293b;color:#e2e8f0;border:1px solid #475569;border-radius:.4rem;padding:.4rem .75rem;font-size:.85rem;">
             <option value="">Véhicule</option>
             @foreach($vehicles as $v)
             <option value="{{ $v->id }}" {{ request('vehicle_id')==$v->id ? 'selected':'' }}>{{ $v->plate }}</option>
             @endforeach
         </select>
+        <label style="display:flex;align-items:center;gap:.4rem;font-size:.83rem;cursor:pointer;padding:.4rem .75rem;border-radius:.4rem;border:1px solid {{ $showArchived ? 'rgba(245,158,11,.6)' : '#475569' }};color:{{ $showArchived ? '#fbbf24' : '#94a3b8' }};background:{{ $showArchived ? 'rgba(245,158,11,.1)' : 'transparent' }};">
+            <input type="checkbox" name="archived" value="1" onchange="this.form.submit()" {{ $showArchived ? 'checked' : '' }} style="accent-color:#f59e0b;">
+            Archives
+        </label>
         <button type="submit" style="padding:.4rem .9rem;background:#3b82f6;color:#fff;border:none;border-radius:.4rem;font-size:.85rem;cursor:pointer;">
             Filtrer
         </button>
-        @if(request()->hasAny(['q','status','type','payment_status','vehicle_id']))
+        @if(request()->hasAny(['q','status','type','payment_status','vehicle_id','archived']))
         <a href="{{ route('infractions.index') }}"
            style="padding:.4rem .9rem;background:#334155;color:#94a3b8;border-radius:.4rem;font-size:.85rem;text-decoration:none;">
             Réinitialiser
@@ -130,7 +147,7 @@
                     $st = $statusColor[$inf->status] ?? ['bg'=>'#334155','color'=>'#94a3b8','label'=>$inf->status];
                     $pt = $inf->payment_status ? ($paymentColor[$inf->payment_status] ?? ['bg'=>'#334155','color'=>'#94a3b8','label'=>$inf->payment_status]) : null;
                 @endphp
-                <tr style="border-bottom:1px solid #334155;{{ $loop->last ? 'border-bottom:none;' : '' }}"
+                <tr style="border-bottom:1px solid #334155;{{ $loop->last ? 'border-bottom:none;' : '' }}{{ $showArchived ? 'opacity:.65;' : '' }}"
                     onmouseover="this.style.background='#ffffff08'" onmouseout="this.style.background='transparent'">
                     <td style="padding:.75rem 1rem;font-size:.82rem;color:#64748b;">#{{ $inf->id }}</td>
                     <td style="padding:.75rem 1rem;">
@@ -167,15 +184,45 @@
                         @endif
                     </td>
                     <td style="padding:.75rem 1rem;text-align:center;">
-                        <span style="padding:.2rem .55rem;background:{{ $st['bg'] }};color:{{ $st['color'] }};border-radius:.35rem;font-size:.72rem;font-weight:600;">
-                            {{ $st['label'] }}
-                        </span>
+                        @if($showArchived)
+                            <div>
+                                <span style="padding:.2rem .55rem;background:rgba(245,158,11,.15);color:#f59e0b;border-radius:.35rem;font-size:.72rem;font-weight:600;">Archivée</span>
+                                @if($inf->deleted_at)
+                                <div style="font-size:.7rem;color:#64748b;margin-top:.2rem;">{{ $inf->deleted_at->isoFormat('D MMM YYYY') }}</div>
+                                @endif
+                            </div>
+                        @else
+                            <span style="padding:.2rem .55rem;background:{{ $st['bg'] }};color:{{ $st['color'] }};border-radius:.35rem;font-size:.72rem;font-weight:600;">
+                                {{ $st['label'] }}
+                            </span>
+                        @endif
                     </td>
                     <td style="padding:.75rem 1rem;text-align:right;">
+                        @if($showArchived)
+                        @if(auth()->user()->hasAnyRole(['super_admin', 'admin']))
+                        <div style="display:flex;justify-content:flex-end;gap:.4rem;">
+                            <form method="POST" action="{{ route('infractions.restore', $inf->id) }}" style="display:inline;">
+                                @csrf
+                                <button type="submit" style="padding:.3rem .65rem;background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.4);border-radius:.35rem;font-size:.75rem;cursor:pointer;">
+                                    Restaurer
+                                </button>
+                            </form>
+                            <form method="POST" action="{{ route('infractions.force-destroy', $inf->id) }}" style="display:inline;"
+                                  data-confirm="Supprimer définitivement l'infraction #{{ $inf->id }} ? Cette action est irréversible."
+                                  data-title="Suppression définitive" data-btn-text="Supprimer" data-btn-color="#dc2626">
+                                @csrf @method('DELETE')
+                                <button type="submit" style="padding:.3rem .65rem;background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.3);border-radius:.35rem;font-size:.75rem;cursor:pointer;">
+                                    Supprimer
+                                </button>
+                            </form>
+                        </div>
+                        @endif
+                        @else
                         <a href="{{ route('infractions.show', $inf) }}"
                            style="padding:.3rem .65rem;background:#334155;color:#94a3b8;border-radius:.35rem;font-size:.75rem;text-decoration:none;">
                             Voir
                         </a>
+                        @endif
                     </td>
                 </tr>
                 @empty

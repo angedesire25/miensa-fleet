@@ -25,11 +25,12 @@ table{width:100%;border-collapse:collapse;}
 th{font-size:.72rem;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;padding:.6rem 1rem;border-bottom:1.5px solid #f1f5f9;text-align:left;white-space:nowrap;}
 td{padding:.7rem 1rem;border-bottom:1px solid #f8fafc;font-size:.855rem;color:#374151;vertical-align:middle;}
 tr:hover td{background:#f8fafc;}
+tr.archived-row td{opacity:.65;}
 .pagination-wrap{display:flex;justify-content:space-between;align-items:center;padding:.75rem 0;font-size:.82rem;color:#64748b;}
 </style>
 
 {{-- ── Statistiques ─────────────────────────────────────────────────────── --}}
-<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:1rem;margin-bottom:1.5rem;">
+<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:1rem;margin-bottom:1.5rem;">
     <div class="stat-card">
         <div class="stat-icon" style="background:#eff6ff;">
             <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="#3b82f6" stroke-width="1.8"/></svg>
@@ -60,23 +61,32 @@ tr:hover td{background:#f8fafc;}
         </div>
         <div><div class="stat-val" style="color:#ef4444;">{{ $stats['graves'] }}</div><div class="stat-lbl">Graves</div></div>
     </div>
+    <div class="stat-card" style="{{ $showArchived ? 'border-color:#f59e0b;background:#fffbeb;' : '' }}">
+        <div class="stat-icon" style="background:{{ $showArchived ? '#fef3c7' : '#fff7ed' }};">
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M21 8v13H3V8" stroke="#f59e0b" stroke-width="1.8" stroke-linecap="round"/><path d="M23 3H1v5h22V3z" stroke="#f59e0b" stroke-width="1.8"/><path d="M10 12h4" stroke="#f59e0b" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div><div class="stat-val" style="color:#d97706;">{{ $stats['archived'] }}</div><div class="stat-lbl">Archivés</div></div>
+    </div>
 </div>
 
 <div class="card">
     <div class="card-head">
-        <span class="card-title">Liste des sinistres</span>
+        <span class="card-title">{{ $showArchived ? 'Sinistres archivés' : 'Liste des sinistres' }}</span>
+        @if(!$showArchived)
         @can('incidents.create')
         <a href="{{ route('incidents.create') }}" class="btn btn-primary">
             <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
             Déclarer un sinistre
         </a>
         @endcan
+        @endif
     </div>
 
     {{-- Filtres --}}
     <div style="padding:1rem 1.25rem;border-bottom:1px solid #f1f5f9;">
         <form method="GET" class="filters-bar">
             <input type="text" name="q" value="{{ request('q') }}" placeholder="Véhicule, lieu, description…" class="filter-input" style="min-width:200px;">
+            @if(!$showArchived)
             <select name="status" class="filter-input">
                 <option value="all">Tous les statuts</option>
                 <option value="open" @selected(request('status')==='open')>Ouvert</option>
@@ -102,8 +112,13 @@ tr:hover td{background:#f8fafc;}
                 <option value="vandalism" @selected(request('type')==='vandalism')>Vandalisme</option>
                 <option value="other" @selected(request('type')==='other')>Autre</option>
             </select>
+            @endif
+            <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;cursor:pointer;padding:.4rem .75rem;border-radius:.45rem;border:1.5px solid {{ $showArchived ? '#f59e0b' : '#e2e8f0' }};color:{{ $showArchived ? '#b45309' : '#64748b' }};background:{{ $showArchived ? '#fffbeb' : '#fff' }};">
+                <input type="checkbox" name="archived" value="1" onchange="this.form.submit()" {{ $showArchived ? 'checked' : '' }} style="accent-color:#f59e0b;">
+                Archives
+            </label>
             <button type="submit" class="btn btn-ghost">Filtrer</button>
-            @if(request()->anyFilled(['q','status','severity','type']))
+            @if(request()->anyFilled(['q','status','severity','type','archived']))
                 <a href="{{ route('incidents.index') }}" class="btn btn-ghost" style="color:#ef4444;">Effacer</a>
             @endif
         </form>
@@ -169,7 +184,7 @@ tr:hover td{background:#f8fafc;}
                     [$sBg,$sFg] = $statusColors[$incident->status]   ?? ['#f8fafc','#64748b'];
                     [$svBg,$svFg] = $severityColors[$incident->severity] ?? ['#f8fafc','#64748b'];
                 @endphp
-                <tr>
+                <tr class="{{ $showArchived ? 'archived-row' : '' }}">
                     <td style="font-weight:600;color:#64748b;">#{{ $incident->id }}</td>
                     <td>
                         @if($incident->vehicle)
@@ -197,17 +212,51 @@ tr:hover td{background:#f8fafc;}
                         {{ $incident->location ?? '—' }}
                     </td>
                     <td>
-                        <span class="badge" style="background:{{ $sBg }};color:{{ $sFg }};">
-                            {{ $statusLabels[$incident->status] ?? $incident->status }}
-                        </span>
+                        @if($showArchived)
+                            <div>
+                                <span class="badge" style="background:#fef3c7;color:#b45309;">Archivé</span>
+                                @if($incident->deleted_at)
+                                <div style="font-size:.7rem;color:#94a3b8;margin-top:.2rem;">{{ $incident->deleted_at->isoFormat('D MMM YYYY') }}</div>
+                                @endif
+                            </div>
+                        @else
+                            <span class="badge" style="background:{{ $sBg }};color:{{ $sFg }};">
+                                {{ $statusLabels[$incident->status] ?? $incident->status }}
+                            </span>
+                        @endif
                     </td>
                     <td style="font-size:.8rem;">
                         {{ $incident->latestRepair?->garage?->name ?? '—' }}
                     </td>
                     <td>
+                        @if($showArchived)
+                        <div style="display:flex;gap:.4rem;">
+                            @can('incidents.edit')
+                            <form method="POST" action="{{ route('incidents.restore', $incident->id) }}" style="display:inline;">
+                                @csrf
+                                <button type="submit" class="btn btn-ghost" style="padding:.3rem .65rem;color:#d97706;border-color:#f59e0b;font-size:.78rem;">
+                                    <svg width="12" height="12" fill="none" viewBox="0 0 24 24"><path d="M3 12a9 9 0 109-9 9 9 0 00-9.26 9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M3 3v5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                    Restaurer
+                                </button>
+                            </form>
+                            @endcan
+                            @if(auth()->user()->hasAnyRole(['super_admin', 'admin']))
+                            <form method="POST" action="{{ route('incidents.force-destroy', $incident->id) }}" style="display:inline;"
+                                  data-confirm="Supprimer définitivement le sinistre #{{ $incident->id }} ? Cette action est irréversible."
+                                  data-title="Suppression définitive" data-btn-text="Supprimer" data-btn-color="#dc2626">
+                                @csrf @method('DELETE')
+                                <button type="submit" class="btn btn-ghost" style="padding:.3rem .65rem;color:#dc2626;border-color:#fca5a5;font-size:.78rem;">
+                                    <svg width="12" height="12" fill="none" viewBox="0 0 24 24"><polyline points="3,6 5,6 21,6" stroke="currentColor" stroke-width="2"/><path d="M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                                    Supprimer
+                                </button>
+                            </form>
+                            @endif
+                        </div>
+                        @else
                         <a href="{{ route('incidents.show', $incident) }}" class="btn btn-ghost" style="padding:.3rem .65rem;font-size:.78rem;">
                             Voir
                         </a>
+                        @endif
                     </td>
                 </tr>
             @empty

@@ -5,35 +5,35 @@
 @section('content')
 @php
     $typeLabels = [
-        'speeding'          => 'Excès de vitesse',
-        'red_light'         => 'Grillage de feu rouge',
-        'parking'           => 'Stationnement interdit',
-        'phone_use'         => 'Usage téléphone au volant',
-        'seatbelt'          => 'Non port de ceinture',
-        'alcohol'           => 'Alcool au volant',
-        'dangerous_driving' => 'Conduite dangereuse',
-        'overload'          => 'Surcharge',
-        'invalid_documents' => 'Documents non valides',
-        'other'             => 'Autre',
+        'speeding'        => 'Excès de vitesse',
+        'red_light'       => 'Grillage de feu rouge',
+        'illegal_parking' => 'Stationnement illicite',
+        'drunk_driving'   => 'Alcool au volant',
+        'phone_use'       => 'Usage téléphone au volant',
+        'accident'        => 'Accident',
+        'seatbelt'        => 'Non port de ceinture',
+        'overloading'     => 'Surcharge',
+        'other'           => 'Autre',
     ];
     $sourceLabels = [
-        'police'             => 'Police / Gendarmerie',
-        'radar'              => 'Radar automatique',
-        'internal'           => 'Signalement interne',
-        'reported_by_driver' => 'Signalé par le conducteur',
-        'third_party'        => 'Tiers',
+        'police_report'   => 'Police / Gendarmerie',
+        'speed_camera'    => 'Radar automatique',
+        'internal_report' => 'Signalement interne',
+        'joint_report'    => 'Constat amiable',
+        'other'           => 'Autre',
     ];
     $imputationLabels = [
         'company' => ['label' => 'Société', 'color' => '#3b82f6'],
         'driver'  => ['label' => 'Conducteur', 'color' => '#f59e0b'],
     ];
     $paymentColors = [
-        'unpaid'    => ['bg' => '#ef444420', 'color' => '#ef4444', 'label' => 'Impayée'],
-        'paid'      => ['bg' => '#10b98120', 'color' => '#10b981', 'label' => 'Payée'],
-        'contested' => ['bg' => '#f59e0b20', 'color' => '#f59e0b', 'label' => 'Contestée'],
-        'waived'    => ['bg' => '#94a3b820', 'color' => '#94a3b8', 'label' => 'Remise'],
+        'unpaid'            => ['bg' => '#ef444420', 'color' => '#ef4444', 'label' => 'Impayée'],
+        'paid_by_company'   => ['bg' => '#10b98120', 'color' => '#10b981', 'label' => 'Payée (société)'],
+        'charged_to_driver' => ['bg' => '#8b5cf620', 'color' => '#8b5cf6', 'label' => 'Imputée chauffeur'],
+        'contested'         => ['bg' => '#f59e0b20', 'color' => '#f59e0b', 'label' => 'Contestée'],
+        'waived'            => ['bg' => '#94a3b820', 'color' => '#94a3b8', 'label' => 'Remise'],
     ];
-    $isClosed = $infraction->status === 'closed';
+    $isClosed = $infraction->status === 'processed';
 @endphp
 
 <div style="padding:1.5rem;">

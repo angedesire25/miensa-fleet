@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', 'Tableau de bord') — Miensa Fleet</title>
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    @php $appLogo = \App\Models\AppSetting::get('logo'); @endphp
+    @if($appLogo)
+    <link rel="icon" type="image/png" href="{{ Storage::url($appLogo) }}">
+    @endif
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
     <style>
@@ -92,6 +96,11 @@
 
     {{-- Logo --}}
     <div class="sidebar-logo">
+        @if($appLogo)
+            <img src="{{ Storage::url($appLogo) }}"
+                 style="width:36px;height:36px;object-fit:contain;border-radius:.5rem;background:rgba(255,255,255,.08);padding:3px;flex-shrink:0;"
+                 alt="Logo">
+        @else
         <div class="sidebar-logo-icon">
             <svg width="20" height="20" fill="none" viewBox="0 0 24 24">
                 <path d="M3 17h2l1-3h12l1 3h2" stroke="white" stroke-width="1.8" stroke-linecap="round"/>
@@ -100,6 +109,7 @@
                 <path d="M6.5 9l1-3h9l1 3" stroke="white" stroke-width="1.5" fill="none"/>
             </svg>
         </div>
+        @endif
         <span class="sidebar-logo-text">Miensa<span>Fleet</span></span>
     </div>
 
@@ -120,6 +130,12 @@
             // Notifications in-app (canal database) non lues
             $unreadNotifications = auth()->user()->unreadNotifications()->latest()->limit(12)->get();
             $unreadNotifCount    = auth()->user()->unreadNotifications()->count();
+
+            // Badge demandes : demandes en attente d'approbation (pour les approbateurs)
+            $pendingRequests = 0;
+            if ($user->can('vehicle_requests.approve')) {
+                $pendingRequests = \App\Models\VehicleRequest::where('status', 'pending')->count();
+            }
 
             // Badge contrôles : fiches du jour en brouillon ou soumises (non encore validées)
             $pendingControls = 0;
@@ -194,6 +210,9 @@
             <a href="{{ route('requests.index') }}" class="nav-item {{ request()->routeIs('requests.*') ? 'active' : '' }}">
                 <svg class="nav-icon" fill="none" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M20 12c0 4.418-3.582 8-8 8s-8-3.582-8-8 3.582-8 8-8 8 3.582 8 8z" stroke="currentColor" stroke-width="1.8"/></svg>
                 Demandes
+                @if($pendingRequests > 0)
+                    <span class="nav-badge">{{ $pendingRequests > 99 ? '99+' : $pendingRequests }}</span>
+                @endif
             </a>
             @endcan
         @endif
@@ -251,6 +270,13 @@
                 Infractions
             </a>
             @endcan
+
+            @can('cleanings.view')
+            <a href="{{ route('cleanings.index') }}" class="nav-item {{ request()->routeIs('cleanings.*') ? 'active' : '' }}">
+                <svg class="nav-icon" fill="none" viewBox="0 0 24 24"><path d="M7 16c0 1.1.9 2 2 2h6a2 2 0 002-2V9H7v7z" stroke="currentColor" stroke-width="1.8"/><path d="M5 9h14M10 5h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M12 12v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                Nettoyages
+            </a>
+            @endcan
         @endif
 
         {{-- ── ADMINISTRATION (super_admin & admin uniquement) ─────────────── --}}
@@ -264,6 +290,12 @@
                     <span class="nav-badge" style="background:#f59e0b;">{{ $totalUsers }}</span>
                 @endif
             </a>
+            @if($user->hasRole('super_admin'))
+            <a href="{{ route('admin.settings.edit') }}" class="nav-item {{ request()->routeIs('admin.settings.*') ? 'active' : '' }}">
+                <svg class="nav-icon" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" stroke="currentColor" stroke-width="1.8"/></svg>
+                Paramètres
+            </a>
+            @endif
         @endif
 
     </div>

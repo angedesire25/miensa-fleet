@@ -157,8 +157,13 @@ class AssignmentService
         }
 
         if (! empty($missingDocs)) {
-            $eligible  = false;
-            $reasons[] = 'Documents obligatoires manquants : ' . implode(', ', $missingDocs) . '.';
+            $docLabels = [
+                'license'        => 'Permis de conduire',
+                'medical_fitness'=> 'Visite médicale d\'aptitude',
+            ];
+            $translated = array_map(fn($t) => $docLabels[$t] ?? $t, $missingDocs);
+            $eligible   = false;
+            $reasons[]  = 'Documents obligatoires manquants : ' . implode(', ', $translated) . '.';
         }
 
         return ['eligible' => $eligible, 'reasons' => $reasons];
@@ -207,21 +212,23 @@ class AssignmentService
                 );
             }
 
-            // ── Conflit chauffeur ───────────────────────────────────────────
-            if ($this->checkDriverConflict($data['driver_id'], $start, $end)) {
-                $driver = Driver::find($data['driver_id']);
-                $name   = $driver?->full_name ?? "ID {$data['driver_id']}";
-                throw new AssignmentConflictException(
-                    'driver',
-                    ["Le chauffeur {$name} a déjà une affectation qui chevauche ce créneau."]
-                );
-            }
+            // ── Conflit chauffeur (uniquement si driver_id renseigné) ──────
+            if (!empty($data['driver_id'])) {
+                if ($this->checkDriverConflict($data['driver_id'], $start, $end)) {
+                    $driver = Driver::find($data['driver_id']);
+                    $name   = $driver?->full_name ?? "ID {$data['driver_id']}";
+                    throw new AssignmentConflictException(
+                        'driver',
+                        ["Le chauffeur {$name} a déjà une affectation qui chevauche ce créneau."]
+                    );
+                }
 
-            // ── Éligibilité du chauffeur ────────────────────────────────────
-            $eligibility = $this->checkDriverEligibility($data['driver_id'], $vehicle->id);
+                // ── Éligibilité du chauffeur ────────────────────────────────
+                $eligibility = $this->checkDriverEligibility($data['driver_id'], $vehicle->id);
 
-            if (! $eligibility['eligible']) {
-                throw new AssignmentConflictException('eligibility', $eligibility['reasons']);
+                if (! $eligibility['eligible']) {
+                    throw new AssignmentConflictException('eligibility', $eligibility['reasons']);
+                }
             }
 
             return Assignment::create($data);

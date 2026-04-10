@@ -19,11 +19,11 @@ class VehicleController extends Controller
 
     public function index(Request $request): View
     {
-        $query = Vehicle::with(['currentDriver', 'profilePhoto']);
+        $showArchived = $request->boolean('archived');
 
-        if ($request->boolean('avec_archives')) {
-            $query = Vehicle::withTrashed()->with(['currentDriver', 'profilePhoto']);
-        }
+        $query = $showArchived
+            ? Vehicle::onlyTrashed()->with(['currentDriver', 'profilePhoto', 'permanentAssignment'])
+            : Vehicle::with(['currentDriver', 'profilePhoto', 'permanentAssignment']);
 
         if ($request->filled('q')) {
             $q = $request->q;
@@ -35,7 +35,7 @@ class VehicleController extends Controller
             });
         }
 
-        if ($request->filled('status') && $request->status !== 'all') {
+        if (!$showArchived && $request->filled('status') && $request->status !== 'all') {
             $query->where('status', $request->status);
         }
 
@@ -58,7 +58,7 @@ class VehicleController extends Controller
             'archived'    => Vehicle::onlyTrashed()->count(),
         ];
 
-        return view('vehicles.index', compact('vehicles', 'stats'));
+        return view('vehicles.index', compact('vehicles', 'stats', 'showArchived'));
     }
 
     // ── Détail ─────────────────────────────────────────────────────────────
@@ -223,38 +223,30 @@ class VehicleController extends Controller
         $vehicle = Vehicle::withTrashed()->findOrFail($id);
         $plate   = $vehicle->plate;
 
-        // Vérifier chaque relation susceptible de bloquer la suppression
+        // Vérifier chaque relation susceptible de bloquer la suppression MySQL.
+        // Pour chaque relation avec SoftDeletes, on distingue actifs vs archivés
+        // afin de donner un message précis à l'utilisateur.
         $blocking = [];
 
-        if ($vehicle->inspections()->count())
-            $blocking[] = $vehicle->inspections()->count() . ' fiche(s) de contrôle';
+        $this->checkRelation($vehicle->assignments(), $blocking, 'affectation(s)');
+        $this->checkRelation($vehicle->inspections(), $blocking, 'fiche(s) de contrôle');
+        $this->checkRelation($vehicle->infractions(), $blocking, 'infraction(s)');
+        $this->checkRelation($vehicle->incidents(),   $blocking, 'sinistre(s)');
+        $this->checkRelation($vehicle->repairs(),     $blocking, 'réparation(s)');
+        $this->checkRelation($vehicle->cleanings(),   $blocking, 'nettoyage(s)');
 
-        if ($vehicle->infractions()->count())
-            $blocking[] = $vehicle->infractions()->count() . ' infraction(s)';
+        // Relations sans SoftDeletes
+        $n = $vehicle->vehicleRequests()->count();
+        if ($n) $blocking[] = "{$n} demande(s) de véhicule";
 
-        if ($vehicle->assignments()->count())
-            $blocking[] = $vehicle->assignments()->count() . ' affectation(s)';
+        $n = $vehicle->alerts()->count();
+        if ($n) $blocking[] = "{$n} alerte(s)";
 
-        if ($vehicle->vehicleRequests()->count())
-            $blocking[] = $vehicle->vehicleRequests()->count() . ' demande(s) de véhicule';
-
-        if ($vehicle->incidents()->count())
-            $blocking[] = $vehicle->incidents()->count() . ' sinistre(s)';
-
-        if ($vehicle->repairs()->count())
-            $blocking[] = $vehicle->repairs()->count() . ' réparation(s)';
-
-        if ($vehicle->tripLogs()->count())
-            $blocking[] = $vehicle->tripLogs()->count() . ' entrée(s) de carnet de bord';
-
-        if ($vehicle->alerts()->count())
-            $blocking[] = $vehicle->alerts()->count() . ' alerte(s)';
-
-        // Si des données liées existent, on informe l'utilisateur sans rien supprimer
+        // Si des données liées existent → informer sans rien supprimer
         if (!empty($blocking)) {
-            $list = implode(', ', $blocking);
+            $lines = implode("\n• ", $blocking);
             return redirect()->back()
-                ->with('swal_error', "Impossible de supprimer « {$plate} » : ce véhicule est lié à {$list}. Supprimez ces données en premier.");
+                ->with('swal_error', "Impossible de supprimer définitivement « {$plate} ».\n\nEnregistrements encore liés :\n• {$lines}\n\nConsultez les archives si aucun enregistrement n'est visible dans les listes.");
         }
 
         // Aucune donnée liée bloquante : supprimer les fichiers puis le véhicule
@@ -284,5 +276,26 @@ class VehicleController extends Controller
         $vehicle->update(['status' => $request->status]);
 
         return back()->with('swal_success', 'Statut du véhicule mis à jour.');
+    }
+
+    // ── Utilitaires ────────────────────────────────────────────────────────
+
+    /**
+     * Compte les enregistrements liés (actifs + archivés séparément)
+     * et pousse une entrée lisible dans $blocking si au moins un existe.
+     */
+    private function checkRelation($relation, array &$blocking, string $label): void
+    {
+        $total  = $relation->withoutGlobalScopes()->count();
+        if ($total === 0) return;
+
+        $active   = $relation->count();
+        $archived = $total - $active;
+
+        $detail = [];
+        if ($active   > 0) $detail[] = "{$active} actif(s)";
+        if ($archived > 0) $detail[] = "{$archived} archivé(s) — vérifiez les archives";
+
+        $blocking[] = "{$total} {$label} (" . implode(', ', $detail) . ")";
     }
 }

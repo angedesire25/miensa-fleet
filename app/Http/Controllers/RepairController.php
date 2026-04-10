@@ -22,7 +22,10 @@ class RepairController extends Controller
 
     public function index(Request $request): View
     {
-        $query = Repair::with(['vehicle', 'garage', 'incident', 'sentBy']);
+        $showArchived = $request->boolean('archived');
+        $query = $showArchived
+            ? Repair::onlyTrashed()->with(['vehicle', 'garage', 'incident', 'sentBy'])
+            : Repair::with(['vehicle', 'garage', 'incident', 'sentBy']);
 
         if ($request->filled('q')) {
             $q = $request->q;
@@ -54,11 +57,12 @@ class RepairController extends Controller
             'en_cours'    => Repair::inProgress()->count(),
             'terminees'   => Repair::completed()->count(),
             'recurrences' => Repair::where('same_issue_recurrence', true)->count(),
+            'archivees'   => Repair::onlyTrashed()->count(),
         ];
 
         $garages = Garage::orderBy('name')->get();
 
-        return view('repairs.index', compact('repairs', 'stats', 'garages'));
+        return view('repairs.index', compact('repairs', 'stats', 'garages', 'showArchived'));
     }
 
     // ── Création directe (entretien préventif ou hors sinistre) ───────────
@@ -186,6 +190,16 @@ class RepairController extends Controller
 
         return redirect()->route('repairs.show', $repair)
                          ->with($data['has_persistent_issue'] ? 'swal_warning' : 'swal_success', $msg);
+    }
+
+    // ── Archivage ─────────────────────────────────────────────────────────
+
+    public function destroy(Repair $repair): RedirectResponse
+    {
+        $repair->delete(); // soft-delete
+
+        return redirect()->route('repairs.index')
+                         ->with('swal_success', "Réparation #{$repair->id} archivée.");
     }
 
     // ── Suppression d'une photo ────────────────────────────────────────────

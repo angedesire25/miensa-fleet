@@ -5,7 +5,7 @@
 @section('content')
 @php
 $statusMap = ['planned'=>['Planifiée','#6366f1','#f0f0ff'],'confirmed'=>['Confirmée','#0891b2','#ecfeff'],'in_progress'=>['En cours','#3b82f6','#eff6ff'],'completed'=>['Terminée','#10b981','#f0fdf4'],'cancelled'=>['Annulée','#64748b','#f8fafc']];
-$typeMap   = ['mission'=>'Mission','daily'=>'Journée','permanent'=>'Permanente','replacement'=>'Remplacement','trial'=>'Essai'];
+$typeMap   = ['mission'=>'Mission','daily'=>'Journée','courses'=>'Courses','permanent'=>'Permanente','replacement'=>'Remplacement','trial'=>'Essai'];
 $condMap   = ['good'=>['Bon','#10b981','#f0fdf4'],'fair'=>['Moyen','#d97706','#fffbeb'],'poor'=>['Mauvais','#ef4444','#fef2f2']];
 $s = $statusMap[$assignment->status] ?? ['Inconnu','#64748b','#f8fafc'];
 @endphp
@@ -310,6 +310,81 @@ $s = $statusMap[$assignment->status] ?? ['Inconnu','#64748b','#f8fafc'];
         </div>
         @endif
 
+        {{-- Galerie photos départ / retour --}}
+        @if($assignment->departurePhotos->isNotEmpty() || $assignment->returnPhotos->isNotEmpty())
+        @php
+            $faceLabels = ['avant'=>'Avant','arriere'=>'Arrière','gauche'=>'Côté gauche','droite'=>'Côté droit'];
+            $depByFace  = $assignment->departurePhotos->keyBy('caption');
+            $retByFace  = $assignment->returnPhotos->keyBy('caption');
+        @endphp
+        <div class="card">
+            <div class="card-head">
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" stroke="#8b5cf6" stroke-width="2"/><circle cx="8.5" cy="8.5" r="1.5" fill="#8b5cf6"/><path d="M21 15l-5-5L5 21" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round"/></svg>
+                <span class="card-title">Photos du véhicule</span>
+            </div>
+            <div class="card-body" style="padding:1rem 1.25rem;">
+
+                {{-- En-têtes colonnes --}}
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:.65rem;">
+                    <div style="font-size:.72rem;font-weight:700;color:#6366f1;text-transform:uppercase;letter-spacing:.05em;display:flex;align-items:center;gap:.35rem;">
+                        <svg width="11" height="11" fill="none" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" stroke="#6366f1" stroke-width="2.5" stroke-linecap="round"/></svg>
+                        Départ ({{ $assignment->departurePhotos->count() }} photo{{ $assignment->departurePhotos->count() > 1 ? 's' : '' }})
+                    </div>
+                    <div style="font-size:.72rem;font-weight:700;color:#10b981;text-transform:uppercase;letter-spacing:.05em;display:flex;align-items:center;gap:.35rem;">
+                        <svg width="11" height="11" fill="none" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7" stroke="#10b981" stroke-width="2.5" stroke-linecap="round"/></svg>
+                        Retour ({{ $assignment->returnPhotos->count() }} photo{{ $assignment->returnPhotos->count() > 1 ? 's' : '' }})
+                    </div>
+                </div>
+
+                {{-- Grille par face --}}
+                @foreach($faceLabels as $face => $faceLabel)
+                @if($depByFace->has($face) || $retByFace->has($face))
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:.75rem;">
+                    {{-- Départ --}}
+                    <div>
+                        @if($depByFace->has($face))
+                        <a href="{{ Storage::url($depByFace[$face]->file_path) }}" target="_blank" style="display:block;">
+                            <img src="{{ Storage::url($depByFace[$face]->file_path) }}"
+                                 style="width:100%;height:90px;object-fit:cover;border-radius:.4rem;border:2px solid #e0e7ff;transition:opacity .15s;"
+                                 onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'"
+                                 alt="{{ $faceLabel }} départ">
+                        </a>
+                        <div style="font-size:.7rem;color:#6366f1;font-weight:600;margin-top:.2rem;">{{ $faceLabel }}</div>
+                        @else
+                        <div style="width:100%;height:90px;background:#f8fafc;border-radius:.4rem;border:1.5px dashed #e2e8f0;display:flex;align-items:center;justify-content:center;">
+                            <span style="font-size:.7rem;color:#cbd5e1;">Non fournie</span>
+                        </div>
+                        <div style="font-size:.7rem;color:#94a3b8;margin-top:.2rem;">{{ $faceLabel }}</div>
+                        @endif
+                    </div>
+                    {{-- Retour --}}
+                    <div>
+                        @if($retByFace->has($face))
+                        <a href="{{ Storage::url($retByFace[$face]->file_path) }}" target="_blank" style="display:block;">
+                            <img src="{{ Storage::url($retByFace[$face]->file_path) }}"
+                                 style="width:100%;height:90px;object-fit:cover;border-radius:.4rem;border:2px solid #d1fae5;transition:opacity .15s;"
+                                 onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'"
+                                 alt="{{ $faceLabel }} retour">
+                        </a>
+                        <div style="font-size:.7rem;color:#10b981;font-weight:600;margin-top:.2rem;">{{ $faceLabel }}</div>
+                        @else
+                        <div style="width:100%;height:90px;background:#f8fafc;border-radius:.4rem;border:1.5px dashed #e2e8f0;display:flex;align-items:center;justify-content:center;">
+                            <span style="font-size:.7rem;color:#cbd5e1;">Non fournie</span>
+                        </div>
+                        <div style="font-size:.7rem;color:#94a3b8;margin-top:.2rem;">{{ $faceLabel }}</div>
+                        @endif
+                    </div>
+                </div>
+                @if(!$loop->last)
+                <div style="height:1px;background:#f1f5f9;margin-bottom:.75rem;"></div>
+                @endif
+                @endif
+                @endforeach
+
+            </div>
+        </div>
+        @endif
+
         {{-- Annulation --}}
         @if($assignment->status === 'cancelled' && $assignment->cancellation_reason)
         <div style="padding:.85rem 1.1rem;background:#fef2f2;border:1px solid #fecaca;border-radius:.65rem;margin-bottom:1rem;display:flex;gap:.65rem;align-items:flex-start;">
@@ -348,32 +423,54 @@ $s = $statusMap[$assignment->status] ?? ['Inconnu','#64748b','#f8fafc'];
 {{-- ── MODAL : Enregistrer le départ ─────────────────────────────────────── --}}
 @can('assignments.edit')
 @if(in_array($assignment->status, ['planned', 'confirmed']))
-<div id="modal-start" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:100;align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
-    <div style="background:#fff;border-radius:.85rem;width:460px;max-width:94vw;box-shadow:0 20px 60px rgba(0,0,0,.2);">
-        <div style="padding:1.25rem 1.5rem;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;">
-            <div style="font-size:.95rem;font-weight:700;color:#0f172a;">Enregistrer le départ</div>
+<div id="modal-start" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:100;align-items:center;justify-content:center;overflow-y:auto;padding:1rem;" onclick="if(event.target===this)this.style.display='none'">
+    <div style="background:#fff;border-radius:.85rem;width:620px;max-width:96vw;box-shadow:0 20px 60px rgba(0,0,0,.25);">
+        <div style="padding:1.1rem 1.5rem;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;">
+            <div style="font-size:.95rem;font-weight:700;color:#0f172a;">🚗 Enregistrer le départ</div>
             <button onclick="document.getElementById('modal-start').style.display='none'" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:1.3rem;line-height:1;">×</button>
         </div>
-        <form method="POST" action="{{ route('assignments.start', $assignment) }}" style="padding:1.25rem 1.5rem;">
+        <form method="POST" action="{{ route('assignments.start', $assignment) }}" enctype="multipart/form-data" style="padding:1.25rem 1.5rem;">
             @csrf
-            <div class="form-group">
-                <label class="form-label">Kilométrage au départ <span style="color:#ef4444;">*</span></label>
-                <input type="number" name="km_start" class="form-input" placeholder="ex: 45800" min="0" required value="{{ old('km_start', $assignment->vehicle?->km_current) }}">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;margin-bottom:.85rem;">
+                <div class="form-group" style="margin:0;">
+                    <label class="form-label">Kilométrage au départ <span style="color:#ef4444;">*</span></label>
+                    <input type="number" name="km_start" class="form-input" placeholder="ex: 45800" min="0" required value="{{ old('km_start', $assignment->vehicle?->km_current) }}">
+                </div>
+                <div class="form-group" style="margin:0;">
+                    <label class="form-label">État du véhicule <span style="color:#ef4444;">*</span></label>
+                    <select name="condition_start" class="form-input" required>
+                        <option value="">— Sélectionner —</option>
+                        <option value="good" @selected(old('condition_start')==='good')>Bon état</option>
+                        <option value="fair" @selected(old('condition_start')==='fair')>État moyen</option>
+                        <option value="poor" @selected(old('condition_start')==='poor')>Mauvais état</option>
+                    </select>
+                </div>
             </div>
-            <div class="form-group">
-                <label class="form-label">État du véhicule au départ <span style="color:#ef4444;">*</span></label>
-                <select name="condition_start" class="form-input" required>
-                    <option value="">— Sélectionner —</option>
-                    <option value="good" @selected(old('condition_start')==='good')>Bon état</option>
-                    <option value="fair" @selected(old('condition_start')==='fair')>État moyen</option>
-                    <option value="poor" @selected(old('condition_start')==='poor')>Mauvais état</option>
-                </select>
-            </div>
-            <div class="form-group" style="margin-bottom:1.25rem;">
+            <div class="form-group" style="margin-bottom:1rem;">
                 <label class="form-label">Observations (optionnel)</label>
                 <textarea name="condition_start_notes" class="form-input" rows="2" placeholder="Rayures, bosses, carburant…">{{ old('condition_start_notes') }}</textarea>
             </div>
-            <div style="display:flex;gap:.65rem;justify-content:flex-end;">
+
+            {{-- Photos 4 faces au départ --}}
+            <div style="border:1.5px solid #e2e8f0;border-radius:.55rem;padding:.85rem;background:#fafafa;">
+                <div style="font-size:.78rem;font-weight:700;color:#374151;margin-bottom:.65rem;display:flex;align-items:center;gap:.4rem;">
+                    <svg width="13" height="13" fill="none" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" stroke="#6366f1" stroke-width="2"/><circle cx="8.5" cy="8.5" r="1.5" fill="#6366f1"/><path d="M21 15l-5-5L5 21" stroke="#6366f1" stroke-width="2" stroke-linecap="round"/></svg>
+                    Photos du véhicule au départ <span style="color:#94a3b8;font-weight:400;">(optionnel — 4 faces)</span>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;">
+                    @foreach(['avant'=>'Avant 🔼','arriere'=>'Arrière 🔽','gauche'=>'Côté gauche ◀','droite'=>'Côté droit ▶'] as $face => $label)
+                    <label style="border:1.5px dashed #c7d2fe;border-radius:.45rem;padding:.65rem;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:.4rem;background:#fff;transition:border-color .15s;" onmouseover="this.style.borderColor='#6366f1'" onmouseout="this.style.borderColor='#c7d2fe'">
+                        <img id="prev-dep-{{ $face }}" style="display:none;width:100%;height:70px;object-fit:cover;border-radius:.3rem;margin-bottom:.2rem;" src="" alt="">
+                        <svg width="20" height="20" fill="none" viewBox="0 0 24 24" id="icon-dep-{{ $face }}"><rect x="3" y="3" width="18" height="18" rx="2" stroke="#a5b4fc" stroke-width="1.5"/><circle cx="8.5" cy="8.5" r="1.5" fill="#a5b4fc"/><path d="M21 15l-5-5L5 21" stroke="#a5b4fc" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        <span style="font-size:.72rem;font-weight:600;color:#6366f1;">{{ $label }}</span>
+                        <input type="file" name="photos_departure_{{ $face }}" accept="image/*" style="display:none;"
+                               onchange="previewFace(this,'prev-dep-{{ $face }}','icon-dep-{{ $face }}')">
+                    </label>
+                    @endforeach
+                </div>
+            </div>
+
+            <div style="display:flex;gap:.65rem;justify-content:flex-end;margin-top:1.1rem;">
                 <button type="button" onclick="document.getElementById('modal-start').style.display='none'" class="btn btn-ghost">Annuler</button>
                 <button type="submit" class="btn btn-blue">
                     <svg width="13" height="13" fill="none" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
@@ -389,37 +486,59 @@ $s = $statusMap[$assignment->status] ?? ['Inconnu','#64748b','#f8fafc'];
 {{-- ── MODAL : Enregistrer le retour ─────────────────────────────────────── --}}
 @can('assignments.edit')
 @if($assignment->status === 'in_progress')
-<div id="modal-complete" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:100;align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
-    <div style="background:#fff;border-radius:.85rem;width:460px;max-width:94vw;box-shadow:0 20px 60px rgba(0,0,0,.2);">
-        <div style="padding:1.25rem 1.5rem;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;">
-            <div style="font-size:.95rem;font-weight:700;color:#0f172a;">Enregistrer le retour</div>
+<div id="modal-complete" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:100;align-items:center;justify-content:center;overflow-y:auto;padding:1rem;" onclick="if(event.target===this)this.style.display='none'">
+    <div style="background:#fff;border-radius:.85rem;width:620px;max-width:96vw;box-shadow:0 20px 60px rgba(0,0,0,.25);">
+        <div style="padding:1.1rem 1.5rem;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;">
+            <div style="font-size:.95rem;font-weight:700;color:#0f172a;">🏁 Enregistrer le retour</div>
             <button onclick="document.getElementById('modal-complete').style.display='none'" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:1.3rem;line-height:1;">×</button>
         </div>
-        <form method="POST" action="{{ route('assignments.complete', $assignment) }}" style="padding:1.25rem 1.5rem;">
+        <form method="POST" action="{{ route('assignments.complete', $assignment) }}" enctype="multipart/form-data" style="padding:1.25rem 1.5rem;">
             @csrf
             @if($assignment->km_start)
-            <div style="padding:.6rem .85rem;background:#eff6ff;border-radius:.45rem;font-size:.8rem;color:#1d4ed8;margin-bottom:.85rem;">
+            <div style="padding:.5rem .85rem;background:#eff6ff;border-radius:.45rem;font-size:.8rem;color:#1d4ed8;margin-bottom:.85rem;">
                 Km au départ : <strong>{{ number_format($assignment->km_start) }} km</strong>
             </div>
             @endif
-            <div class="form-group">
-                <label class="form-label">Kilométrage au retour <span style="color:#ef4444;">*</span></label>
-                <input type="number" name="km_end" class="form-input" placeholder="ex: 46250" min="{{ $assignment->km_start ?? 0 }}" required value="{{ old('km_end') }}">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;margin-bottom:.85rem;">
+                <div class="form-group" style="margin:0;">
+                    <label class="form-label">Kilométrage au retour <span style="color:#ef4444;">*</span></label>
+                    <input type="number" name="km_end" class="form-input" placeholder="ex: 46250" min="{{ $assignment->km_start ?? 0 }}" required value="{{ old('km_end') }}">
+                </div>
+                <div class="form-group" style="margin:0;">
+                    <label class="form-label">État du véhicule <span style="color:#ef4444;">*</span></label>
+                    <select name="condition_end" class="form-input" required>
+                        <option value="">— Sélectionner —</option>
+                        <option value="good" @selected(old('condition_end')==='good')>Bon état</option>
+                        <option value="fair" @selected(old('condition_end')==='fair')>État moyen</option>
+                        <option value="poor" @selected(old('condition_end')==='poor')>Mauvais état</option>
+                    </select>
+                </div>
             </div>
-            <div class="form-group">
-                <label class="form-label">État du véhicule au retour <span style="color:#ef4444;">*</span></label>
-                <select name="condition_end" class="form-input" required>
-                    <option value="">— Sélectionner —</option>
-                    <option value="good" @selected(old('condition_end')==='good')>Bon état</option>
-                    <option value="fair" @selected(old('condition_end')==='fair')>État moyen</option>
-                    <option value="poor" @selected(old('condition_end')==='poor')>Mauvais état</option>
-                </select>
-            </div>
-            <div class="form-group" style="margin-bottom:1.25rem;">
+            <div class="form-group" style="margin-bottom:1rem;">
                 <label class="form-label">Observations (optionnel)</label>
                 <textarea name="condition_end_notes" class="form-input" rows="2" placeholder="Dommages constatés, carburant…">{{ old('condition_end_notes') }}</textarea>
             </div>
-            <div style="display:flex;gap:.65rem;justify-content:flex-end;">
+
+            {{-- Photos 4 faces au retour --}}
+            <div style="border:1.5px solid #e2e8f0;border-radius:.55rem;padding:.85rem;background:#fafafa;">
+                <div style="font-size:.78rem;font-weight:700;color:#374151;margin-bottom:.65rem;display:flex;align-items:center;gap:.4rem;">
+                    <svg width="13" height="13" fill="none" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" stroke="#10b981" stroke-width="2"/><circle cx="8.5" cy="8.5" r="1.5" fill="#10b981"/><path d="M21 15l-5-5L5 21" stroke="#10b981" stroke-width="2" stroke-linecap="round"/></svg>
+                    Photos du véhicule au retour <span style="color:#94a3b8;font-weight:400;">(optionnel — 4 faces)</span>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;">
+                    @foreach(['avant'=>'Avant 🔼','arriere'=>'Arrière 🔽','gauche'=>'Côté gauche ◀','droite'=>'Côté droit ▶'] as $face => $label)
+                    <label style="border:1.5px dashed #bbf7d0;border-radius:.45rem;padding:.65rem;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:.4rem;background:#fff;transition:border-color .15s;" onmouseover="this.style.borderColor='#10b981'" onmouseout="this.style.borderColor='#bbf7d0'">
+                        <img id="prev-ret-{{ $face }}" style="display:none;width:100%;height:70px;object-fit:cover;border-radius:.3rem;margin-bottom:.2rem;" src="" alt="">
+                        <svg width="20" height="20" fill="none" viewBox="0 0 24 24" id="icon-ret-{{ $face }}"><rect x="3" y="3" width="18" height="18" rx="2" stroke="#6ee7b7" stroke-width="1.5"/><circle cx="8.5" cy="8.5" r="1.5" fill="#6ee7b7"/><path d="M21 15l-5-5L5 21" stroke="#6ee7b7" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        <span style="font-size:.72rem;font-weight:600;color:#059669;">{{ $label }}</span>
+                        <input type="file" name="photos_return_{{ $face }}" accept="image/*" style="display:none;"
+                               onchange="previewFace(this,'prev-ret-{{ $face }}','icon-ret-{{ $face }}')">
+                    </label>
+                    @endforeach
+                </div>
+            </div>
+
+            <div style="display:flex;gap:.65rem;justify-content:flex-end;margin-top:1.1rem;">
                 <button type="button" onclick="document.getElementById('modal-complete').style.display='none'" class="btn btn-ghost">Annuler</button>
                 <button type="submit" class="btn btn-primary">
                     <svg width="13" height="13" fill="none" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/></svg>
@@ -431,6 +550,21 @@ $s = $statusMap[$assignment->status] ?? ['Inconnu','#64748b','#f8fafc'];
 </div>
 @endif
 @endcan
+
+<script>
+function previewFace(input, imgId, iconId) {
+    if (!input.files || !input.files[0]) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+        const img  = document.getElementById(imgId);
+        const icon = document.getElementById(iconId);
+        img.src = e.target.result;
+        img.style.display = 'block';
+        if (icon) icon.style.display = 'none';
+    };
+    reader.readAsDataURL(input.files[0]);
+}
+</script>
 
 {{-- ── MODAL : Annuler l'affectation ──────────────────────────────────────── --}}
 @can('assignments.edit')

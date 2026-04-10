@@ -107,10 +107,25 @@ class Vehicle extends Model
                     ->latest('datetime_start');
     }
 
+    /** Affectation permanente active (confirmed ou in_progress) */
+    public function permanentAssignment(): HasOne
+    {
+        return $this->hasOne(Assignment::class)
+                    ->where('type', 'permanent')
+                    ->whereIn('status', ['confirmed', 'in_progress'])
+                    ->latest('datetime_start');
+    }
+
     /** Demandes de véhicule */
     public function vehicleRequests(): HasMany
     {
         return $this->hasMany(VehicleRequest::class);
+    }
+
+    /** Nettoyages planifiés */
+    public function cleanings(): HasMany
+    {
+        return $this->hasMany(VehicleCleaning::class);
     }
 
     /** Fiches de contrôle */

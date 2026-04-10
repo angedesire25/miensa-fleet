@@ -24,6 +24,7 @@ class Assignment extends Model
      */
     protected $fillable = [
         'driver_id',
+        'user_id',
         'vehicle_id',
         'type',
         'datetime_start',
@@ -85,6 +86,12 @@ class Assignment extends Model
     public function driver(): BelongsTo
     {
         return $this->belongsTo(Driver::class);
+    }
+
+    /** Collaborateur (user avec rôle collaborator) affecté à la place d'un chauffeur */
+    public function collaborator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     public function vehicle(): BelongsTo

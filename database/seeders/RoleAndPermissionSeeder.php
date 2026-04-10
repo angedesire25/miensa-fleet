@@ -77,7 +77,7 @@ class RoleAndPermissionSeeder extends Seeder
             ],
             // Réparations
             'repairs' => [
-                'repairs.view', 'repairs.create', 'repairs.edit',
+                'repairs.view', 'repairs.create', 'repairs.edit', 'repairs.delete',
             ],
             // Pièces
             'parts' => [
@@ -86,6 +86,11 @@ class RoleAndPermissionSeeder extends Seeder
             // Utilisateurs
             'users' => [
                 'users.view', 'users.create', 'users.edit', 'users.delete',
+            ],
+            // Nettoyage des véhicules
+            'cleanings' => [
+                'cleanings.view', 'cleanings.create', 'cleanings.edit',
+                'cleanings.delete', 'cleanings.confirm',
             ],
         ];
 
@@ -144,6 +149,7 @@ class RoleAndPermissionSeeder extends Seeder
                     'incidents.view',
                     'repairs.view', 'repairs.create', 'repairs.edit',
                     'parts.view', 'parts.create',
+                    'cleanings.view', 'cleanings.create', 'cleanings.edit', 'cleanings.confirm',
                 ])->get(),
             ],
             [
@@ -163,8 +169,8 @@ class RoleAndPermissionSeeder extends Seeder
                 'permissions' => Permission::whereIn('name', [
                     'vehicles.view',
                     'vehicle_requests.view', 'vehicle_requests.create',
-                    // Peut soumettre et corriger ses propres fiches (le gestionnaire approuve)
                     'inspections.view', 'inspections.create', 'inspections.edit',
+                    'cleanings.view', 'cleanings.confirm',
                 ])->get(),
             ],
             [
@@ -176,8 +182,8 @@ class RoleAndPermissionSeeder extends Seeder
                     'vehicles.view',
                     'vehicle_requests.view', 'vehicle_requests.create',
                     'assignments.view',
-                    // Peut soumettre et corriger ses propres fiches (le gestionnaire approuve)
                     'inspections.view', 'inspections.create', 'inspections.edit',
+                    'cleanings.view', 'cleanings.confirm',
                 ])->get(),
             ],
         ];

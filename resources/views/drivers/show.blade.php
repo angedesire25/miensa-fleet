@@ -76,6 +76,17 @@ $licenseExpiring = !$licenseExpired
 </div>
 @endif
 
+@if(session('new_password'))
+<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:.5rem;padding:1rem 1.25rem;margin-bottom:1.25rem;display:flex;align-items:flex-start;gap:.75rem;">
+    <svg width="18" height="18" fill="none" viewBox="0 0 24 24" style="flex-shrink:0;margin-top:.1rem;"><rect x="3" y="11" width="18" height="11" rx="2" stroke="#d97706" stroke-width="2"/><path d="M7 11V7a5 5 0 0110 0v4" stroke="#d97706" stroke-width="2" stroke-linecap="round"/></svg>
+    <div>
+        <p style="font-weight:700;color:#92400e;margin:0 0 .25rem;">Compte d'accès créé — mot de passe provisoire</p>
+        <p style="margin:0;color:#78350f;font-size:.875rem;">Communiquez ce mot de passe à <strong>{{ session('new_password_user') }}</strong> : <strong style="font-family:monospace;font-size:1rem;letter-spacing:.05em;">{{ session('new_password') }}</strong></p>
+        <p style="margin:.3rem 0 0;color:#92400e;font-size:.78rem;">⚠ Affiché une seule fois — copiez-le maintenant. Le chauffeur devra le modifier à sa première connexion.</p>
+    </div>
+</div>
+@endif
+
 <div style="display:grid;grid-template-columns:260px 1fr;gap:1.25rem;align-items:start;">
 
     {{-- ── Colonne gauche ──────────────────────────────────────────────── --}}
@@ -213,6 +224,72 @@ $licenseExpiring = !$licenseExpired
 
     {{-- ── Colonne droite ──────────────────────────────────────────────── --}}
     <div>
+
+        {{-- Compte utilisateur lié ──────────────────────────────────────── --}}
+        @if(auth()->user()->hasAnyRole(['super_admin', 'admin']))
+        <div class="card" style="border-color:{{ $linkedUser ? '#bbf7d0' : '#fde68a' }};">
+            <div class="card-head" style="background:{{ $linkedUser ? '#f0fdf4' : '#fffbeb' }};">
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" stroke="{{ $linkedUser ? '#10b981' : '#d97706' }}" stroke-width="2"/><path d="M7 11V7a5 5 0 0110 0v4" stroke="{{ $linkedUser ? '#10b981' : '#d97706' }}" stroke-width="2" stroke-linecap="round"/></svg>
+                <span class="card-title" style="color:{{ $linkedUser ? '#065f46' : '#92400e' }};">Compte d'accès</span>
+                @if($linkedUser)
+                    <a href="{{ route('admin.users.show', $linkedUser) }}" style="margin-left:auto;font-size:.75rem;color:#10b981;text-decoration:none;font-weight:600;">Voir le compte →</a>
+                @endif
+            </div>
+            <div class="card-body" style="padding:1rem 1.25rem;">
+                @if($linkedUser)
+                    <div class="dl">
+                        <span class="dt">Nom</span>
+                        <span class="dd">{{ $linkedUser->name }}</span>
+                        <span class="dt">Email</span>
+                        <span class="dd">{{ $linkedUser->email }}</span>
+                        <span class="dt">Rôle</span>
+                        <span class="dd">{{ $linkedUser->roles->first()?->name ?? '—' }}</span>
+                        <span class="dt">Statut</span>
+                        <span class="dd">
+                            @if($linkedUser->status === 'active')
+                                <span style="color:#10b981;font-weight:600;">● Actif</span>
+                            @else
+                                <span style="color:#ef4444;font-weight:600;">● Suspendu</span>
+                            @endif
+                        </span>
+                        <span class="dt">Dernière connexion</span>
+                        <span class="dd">{{ $linkedUser->last_login_at?->diffForHumans() ?? 'Jamais' }}</span>
+                    </div>
+                @else
+                    <p style="font-size:.82rem;color:#92400e;margin:0 0 .85rem;">Ce chauffeur n'a pas de compte d'accès. Créez-en un pour lui permettre de se connecter.</p>
+                    <form method="POST" action="{{ route('drivers.create-account', $driver) }}" id="create-account-form">
+                        @csrf
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.75rem;">
+                            <div>
+                                <label style="font-size:.75rem;font-weight:600;color:#374151;display:block;margin-bottom:.3rem;">Email</label>
+                                <input type="email" name="account_email"
+                                       value="{{ old('account_email', $driver->email) }}"
+                                       class="form-input" placeholder="email@entreprise.ci" style="font-size:.82rem;">
+                                @error('account_email')<p style="font-size:.72rem;color:#dc2626;margin-top:.2rem;">{{ $message }}</p>@enderror
+                            </div>
+                            <div>
+                                <label style="font-size:.75rem;font-weight:600;color:#374151;display:block;margin-bottom:.3rem;">Mot de passe provisoire</label>
+                                <div style="position:relative;">
+                                    <input type="text" name="account_password" id="drv-pwd"
+                                           value="{{ old('account_password', 'Fleet@'.rand(1000,9999)) }}"
+                                           class="form-input" style="font-family:monospace;font-size:.82rem;padding-right:2.2rem;">
+                                    <button type="button" onclick="regenDrvPwd()" style="position:absolute;right:.4rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#64748b;" title="Regénérer">
+                                        <svg width="13" height="13" fill="none" viewBox="0 0 24 24"><path d="M23 4v6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M1 20v-6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                                    </button>
+                                </div>
+                                @error('account_password')<p style="font-size:.72rem;color:#dc2626;margin-top:.2rem;">{{ $message }}</p>@enderror
+                            </div>
+                        </div>
+                        <button type="submit" style="width:100%;padding:.5rem;background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none;border-radius:.45rem;font-size:.82rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.4rem;">
+                            <svg width="12" height="12" fill="none" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2"/><line x1="19" y1="8" x2="19" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="22" y1="11" x2="16" y2="11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                            Créer le compte d'accès
+                        </button>
+                    </form>
+                    <script>function regenDrvPwd(){document.getElementById('drv-pwd').value='Fleet@'+Math.floor(1000+Math.random()*9000);}</script>
+                @endif
+            </div>
+        </div>
+        @endif
 
         {{-- Informations personnelles --}}
         <div class="card">

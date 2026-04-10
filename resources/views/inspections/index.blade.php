@@ -27,6 +27,7 @@ table{width:100%;border-collapse:collapse;}
 th{font-size:.72rem;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;padding:.6rem 1rem;border-bottom:1.5px solid #f1f5f9;text-align:left;white-space:nowrap;}
 td{padding:.65rem 1rem;border-bottom:1px solid #f8fafc;font-size:.84rem;color:#374151;vertical-align:middle;}
 tr:hover td{background:#f8fafc;}
+tr.archived-row td{opacity:.65;}
 .dot{width:7px;height:7px;border-radius:50%;display:inline-block;}
 .fuel-bar{width:60px;height:7px;background:#f1f5f9;border-radius:99px;overflow:hidden;display:inline-block;vertical-align:middle;}
 .fuel-fill{height:100%;border-radius:99px;}
@@ -38,42 +39,32 @@ tr:hover td{background:#f8fafc;}
     <div class="stat-card"><div class="stat-icon" style="background:#eff6ff;"><svg width="18" height="18" fill="none" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2" stroke="#3b82f6" stroke-width="2"/><path d="M8 2v4M16 2v4M3 10h18" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/></svg></div><div><div class="stat-val" style="color:#3b82f6;">{{ $stats['today'] }}</div><div class="stat-lbl">Aujourd'hui</div></div></div>
     <div class="stat-card"><div class="stat-icon" style="background:#fffbeb;"><svg width="18" height="18" fill="none" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01" stroke="#d97706" stroke-width="2" stroke-linecap="round"/><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="#d97706" stroke-width="2"/></svg></div><div><div class="stat-val" style="color:#d97706;">{{ $stats['submitted'] }}</div><div class="stat-lbl">À valider</div></div></div>
     <div class="stat-card"><div class="stat-icon" style="background:#fef2f2;"><svg width="18" height="18" fill="none" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="#ef4444" stroke-width="2"/><path d="M12 9v4M12 17h.01" stroke="#ef4444" stroke-width="2" stroke-linecap="round"/></svg></div><div><div class="stat-val" style="color:#ef4444;">{{ $stats['critical'] }}</div><div class="stat-lbl">Critiques (7j)</div></div></div>
-    {{-- Carte archives : cliquable pour voir les fiches archivées --}}
-    <a href="{{ route('inspections.index', ['show_archived'=>1]) }}" class="stat-card" style="text-decoration:none;cursor:pointer;transition:border-color .15s;" onmouseover="this.style.borderColor='#64748b'" onmouseout="this.style.borderColor='#e2e8f0'">
-        <div class="stat-icon" style="background:#f8fafc;">
-            <svg width="18" height="18" fill="none" viewBox="0 0 24 24"><path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" stroke="#64748b" stroke-width="2" stroke-linecap="round"/></svg>
+    <div class="stat-card" style="{{ $showArchived ? 'border-color:#f59e0b;background:#fffbeb;' : '' }}">
+        <div class="stat-icon" style="background:{{ $showArchived ? '#fef3c7' : '#fff7ed' }};">
+            <svg width="18" height="18" fill="none" viewBox="0 0 24 24"><path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" stroke="#f59e0b" stroke-width="2" stroke-linecap="round"/></svg>
         </div>
         <div>
-            <div class="stat-val" style="color:#64748b;">{{ $stats['archived'] }}</div>
+            <div class="stat-val" style="color:#d97706;">{{ $stats['archived'] }}</div>
             <div class="stat-lbl">Archivées</div>
         </div>
-    </a>
-</div>
-
-{{-- Bandeau si on affiche les archives --}}
-@if(request()->boolean('show_archived'))
-<div style="padding:.7rem 1rem;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:.65rem;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;font-size:.83rem;color:#64748b;">
-    <div style="display:flex;align-items:center;gap:.5rem;">
-        <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        Affichage des fiches <strong>archivées</strong>
     </div>
-    <a href="{{ route('inspections.index') }}" style="color:#10b981;font-weight:600;text-decoration:none;">← Revenir aux fiches actives</a>
 </div>
-@endif
 
 <div class="card">
     <div class="card-head" style="justify-content:space-between;">
         <div style="display:flex;align-items:center;gap:.6rem;">
             <svg width="15" height="15" fill="none" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" stroke="#10b981" stroke-width="2" stroke-linecap="round"/><rect x="9" y="3" width="6" height="4" rx="1" stroke="#10b981" stroke-width="2"/><path d="M9 12l2 2 4-4" stroke="#10b981" stroke-width="2" stroke-linecap="round"/></svg>
-            <span class="card-title">Fiches de contrôle</span>
+            <span class="card-title">{{ $showArchived ? 'Fiches archivées' : 'Fiches de contrôle' }}</span>
             <span style="background:#f1f5f9;color:#64748b;font-size:.72rem;font-weight:600;padding:.1rem .5rem;border-radius:99px;">{{ $inspections->total() }}</span>
         </div>
+        @if(!$showArchived)
         @can('inspections.create')
         <a href="{{ route('inspections.create') }}" class="btn btn-primary">
             <svg width="13" height="13" fill="none" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
             Nouvelle fiche
         </a>
         @endcan
+        @endif
     </div>
 
     {{-- Filtres --}}
@@ -101,8 +92,9 @@ tr:hover td{background:#f8fafc;}
             <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;color:#374151;cursor:pointer;">
                 <input type="checkbox" name="critical_only" value="1" @checked(request()->boolean('critical_only'))> Critiques uniquement
             </label>
-            <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;color:#64748b;cursor:pointer;">
-                <input type="checkbox" name="show_archived" value="1" @checked(request()->boolean('show_archived'))> Archives
+            <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;cursor:pointer;padding:.4rem .75rem;border-radius:.45rem;border:1.5px solid {{ $showArchived ? '#f59e0b' : '#e2e8f0' }};color:{{ $showArchived ? '#b45309' : '#64748b' }};background:{{ $showArchived ? '#fffbeb' : '#fff' }};">
+                <input type="checkbox" name="show_archived" value="1" onchange="this.form.submit()" {{ $showArchived ? 'checked' : '' }} style="accent-color:#f59e0b;">
+                Archives
             </label>
             <input type="date" name="date_from" value="{{ request('date_from') }}" class="filter-input" title="Du">
             <input type="date" name="date_to"   value="{{ request('date_to') }}"   class="filter-input" title="Au">
@@ -136,7 +128,7 @@ tr:hover td{background:#f8fafc;}
                     $st = $statusMap[$i->status]           ?? ['—','#94a3b8','#f8fafc'];
                     $fuelColor = $i->fuel_level_pct >= 50 ? '#10b981' : ($i->fuel_level_pct >= 25 ? '#d97706' : '#ef4444');
                 @endphp
-                <tr>
+                <tr class="{{ $showArchived ? 'archived-row' : '' }}">
                     <td style="font-family:monospace;font-size:.78rem;color:#94a3b8;">#{{ $i->id }}</td>
                     <td>
                         <div style="display:flex;align-items:center;gap:.55rem;">
@@ -188,15 +180,49 @@ tr:hover td{background:#f8fafc;}
                         @endif
                     </td>
                     <td>
-                        <span class="badge" style="background:{{ $st[2] }};color:{{ $st[1] }};">
-                            <span class="dot" style="background:{{ $st[1] }};width:5px;height:5px;"></span>
-                            {{ $st[0] }}
-                        </span>
+                        @if($showArchived)
+                            <div>
+                                <span class="badge" style="background:#fef3c7;color:#b45309;">Archivée</span>
+                                @if($i->archived_at)
+                                <div style="font-size:.7rem;color:#94a3b8;margin-top:.2rem;">{{ $i->archived_at->isoFormat('D MMM YYYY') }}</div>
+                                @endif
+                            </div>
+                        @else
+                            <span class="badge" style="background:{{ $st[2] }};color:{{ $st[1] }};">
+                                <span class="dot" style="background:{{ $st[1] }};width:5px;height:5px;"></span>
+                                {{ $st[0] }}
+                            </span>
+                        @endif
                     </td>
                     <td style="text-align:right;">
-                        <a href="{{ route('inspections.show', $i) }}" class="btn btn-ghost" style="padding:.32rem .6rem;" title="Détail">
-                            <svg width="13" height="13" fill="none" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/></svg>
-                        </a>
+                        <div style="display:flex;justify-content:flex-end;gap:.4rem;">
+                            @if($showArchived)
+                                @can('inspections.edit')
+                                <form method="POST" action="{{ route('inspections.unarchive', $i) }}" style="display:inline;">
+                                    @csrf
+                                    <button type="submit" class="btn btn-ghost" style="padding:.35rem .7rem;color:#d97706;border-color:#f59e0b;font-size:.78rem;">
+                                        <svg width="12" height="12" fill="none" viewBox="0 0 24 24"><path d="M3 12a9 9 0 109-9 9 9 0 00-9.26 9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M3 3v5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                        Restaurer
+                                    </button>
+                                </form>
+                                @endcan
+                                @if(auth()->user()->hasAnyRole(['super_admin', 'admin']))
+                                <form method="POST" action="{{ route('inspections.destroy', $i) }}" style="display:inline;"
+                                      data-confirm="Supprimer définitivement la fiche #{{ $i->id }} ? Cette action est irréversible."
+                                      data-title="Suppression définitive" data-btn-text="Supprimer" data-btn-color="#dc2626">
+                                    @csrf @method('DELETE')
+                                    <button type="submit" class="btn btn-ghost" style="padding:.35rem .7rem;color:#dc2626;border-color:#fca5a5;font-size:.78rem;">
+                                        <svg width="12" height="12" fill="none" viewBox="0 0 24 24"><polyline points="3,6 5,6 21,6" stroke="currentColor" stroke-width="2"/><path d="M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                                        Supprimer
+                                    </button>
+                                </form>
+                                @endif
+                            @else
+                                <a href="{{ route('inspections.show', $i) }}" class="btn btn-ghost" style="padding:.32rem .6rem;" title="Détail">
+                                    <svg width="13" height="13" fill="none" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/></svg>
+                                </a>
+                            @endif
+                        </div>
                     </td>
                 </tr>
                 @empty

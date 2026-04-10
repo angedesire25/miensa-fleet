@@ -86,7 +86,17 @@
         <div>
             <div class="stat-value">{{ $stats['vehicles_available'] }}</div>
             <div class="stat-label">Véhicules disponibles</div>
-            <div class="stat-sub">{{ $stats['vehicles_total'] }} au total · {{ $stats['vehicles_mission'] }} en mission</div>
+            <div style="font-size:.75rem;margin-top:.15rem;display:flex;flex-wrap:wrap;gap:.3rem;">
+                <span style="color:#94a3b8;">{{ $stats['vehicles_total'] }} au total</span>
+                @if($stats['vehicles_permanent'] > 0)
+                    <span style="background:#ede9fe;color:#5b21b6;padding:.05rem .4rem;border-radius:99px;font-weight:600;">
+                        {{ $stats['vehicles_permanent'] }} attribué{{ $stats['vehicles_permanent'] > 1 ? 's' : '' }} en permanence
+                    </span>
+                @endif
+                @if($stats['vehicles_mission'] > 0)
+                    <span style="color:#94a3b8;">· {{ $stats['vehicles_mission'] }} en mission</span>
+                @endif
+            </div>
         </div>
     </div>
 
@@ -138,7 +148,7 @@
                 <svg width="15" height="15" fill="none" viewBox="0 0 24 24" style="display:inline;vertical-align:middle;margin-right:.3rem;"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="#f59e0b" stroke-width="2"/></svg>
                 Alertes récentes
             </span>
-            <a href="#" class="section-link">Voir tout →</a>
+            <a href="{{ route('alerts.index') }}" class="section-link">Voir tout →</a>
         </div>
         @if($recentAlerts->isEmpty())
             <div style="padding:2rem;text-align:center;color:#94a3b8;font-size:.875rem;">Aucune alerte active</div>
@@ -190,64 +200,53 @@
             <span class="section-title">État de la flotte</span>
         </div>
         @php
-            $total = max($stats['vehicles_total'], 1);
-            $available   = $stats['vehicles_available'];
-            $mission     = $stats['vehicles_mission'];
-            $maintenance = $stats['vehicles_maintenance'];
-            $other       = max(0, $total - $available - $mission - $maintenance);
+            $fTotal = max($fleetStats['total'], 1);
+            $r = 50; $circ = 2 * M_PI * $r;
 
-            // SVG doughnut (rayon 50, circumference ≈ 314.16)
-            $r = 50; $c = 2 * pi() * $r;
-            $pAvail = $available / $total * $c;
-            $pMiss  = $mission  / $total * $c;
-            $pMaint = $maintenance / $total * $c;
-            $pOther = $other    / $total * $c;
+            // 5 segments : disponible libre, attribué permanent, mission ponctuelle, maintenance, panne
+            $segs = [
+                ['val' => $fleetStats['available'],          'color' => '#10b981', 'label' => 'Disponibles'],
+                ['val' => $fleetStats['permanent_assigned'], 'color' => '#6366f1', 'label' => 'Affectation permanente'],
+                ['val' => $fleetStats['mission_ponctuel'],   'color' => '#3b82f6', 'label' => 'En mission'],
+                ['val' => $fleetStats['maintenance'],        'color' => '#f59e0b', 'label' => 'Au garage'],
+                ['val' => $fleetStats['breakdown'],          'color' => '#ef4444', 'label' => 'En panne'],
+            ];
+
+            $offset = 0;
+            foreach ($segs as $k => $seg) {
+                $segs[$k]['arc']    = $seg['val'] / $fTotal * $circ;
+                $segs[$k]['offset'] = $offset;
+                $offset += $segs[$k]['arc'];
+            }
         @endphp
         <div class="fleet-ring-wrap">
             <div class="fleet-ring">
                 <svg width="130" height="130" viewBox="0 0 120 120">
                     <circle cx="60" cy="60" r="{{ $r }}" fill="none" stroke="#f1f5f9" stroke-width="14"/>
-                    {{-- Available --}}
-                    <circle cx="60" cy="60" r="{{ $r }}" fill="none" stroke="#10b981" stroke-width="14"
-                        stroke-dasharray="{{ $pAvail }} {{ $c - $pAvail }}"
-                        stroke-dashoffset="0"/>
-                    {{-- Mission --}}
-                    <circle cx="60" cy="60" r="{{ $r }}" fill="none" stroke="#3b82f6" stroke-width="14"
-                        stroke-dasharray="{{ $pMiss }} {{ $c - $pMiss }}"
-                        stroke-dashoffset="{{ -$pAvail }}"/>
-                    {{-- Maintenance --}}
-                    <circle cx="60" cy="60" r="{{ $r }}" fill="none" stroke="#f59e0b" stroke-width="14"
-                        stroke-dasharray="{{ $pMaint }} {{ $c - $pMaint }}"
-                        stroke-dashoffset="{{ -($pAvail + $pMiss) }}"/>
+                    @foreach($segs as $seg)
+                        @if($seg['val'] > 0)
+                        <circle cx="60" cy="60" r="{{ $r }}" fill="none"
+                            stroke="{{ $seg['color'] }}" stroke-width="14"
+                            stroke-dasharray="{{ $seg['arc'] }} {{ $circ - $seg['arc'] }}"
+                            stroke-dashoffset="{{ -$seg['offset'] }}"/>
+                        @endif
+                    @endforeach
                 </svg>
                 <div class="ring-center">
-                    <span class="ring-center-num">{{ $stats['vehicles_total'] }}</span>
+                    <span class="ring-center-num">{{ $fleetStats['total'] }}</span>
                     <span class="ring-center-lbl">véhicules</span>
                 </div>
             </div>
             <div style="flex:1;">
-                <div class="legend-item">
-                    <div class="legend-dot" style="background:#10b981;"></div>
-                    <span class="legend-name">Disponibles</span>
-                    <span class="legend-val">{{ $available }}</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-dot" style="background:#3b82f6;"></div>
-                    <span class="legend-name">En mission</span>
-                    <span class="legend-val">{{ $mission }}</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-dot" style="background:#f59e0b;"></div>
-                    <span class="legend-name">Maintenance</span>
-                    <span class="legend-val">{{ $maintenance }}</span>
-                </div>
-                @if($other > 0)
+                @foreach($segs as $seg)
+                    @if($seg['val'] > 0 || $seg['label'] === 'Disponibles')
                     <div class="legend-item">
-                        <div class="legend-dot" style="background:#e2e8f0;"></div>
-                        <span class="legend-name">Autres</span>
-                        <span class="legend-val">{{ $other }}</span>
+                        <div class="legend-dot" style="background:{{ $seg['color'] }};"></div>
+                        <span class="legend-name">{{ $seg['label'] }}</span>
+                        <span class="legend-val">{{ $seg['val'] }}</span>
                     </div>
-                @endif
+                    @endif
+                @endforeach
             </div>
         </div>
     </div>
@@ -263,18 +262,29 @@
                 <svg width="15" height="15" fill="none" viewBox="0 0 24 24" style="display:inline;vertical-align:middle;margin-right:.3rem;"><rect x="3" y="4" width="18" height="16" rx="2" stroke="#3b82f6" stroke-width="2"/><path d="M8 2v4M16 2v4M3 10h18" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/></svg>
                 Affectations en cours
             </span>
-            <a href="#" class="section-link">Tout voir →</a>
+            <a href="{{ route('assignments.index') }}" class="section-link">Tout voir →</a>
         </div>
         @if($activeAssignments->isEmpty())
             <div style="padding:2rem;text-align:center;color:#94a3b8;font-size:.875rem;">Aucune affectation active</div>
         @else
             <table class="data-table">
-                <thead><tr><th>Véhicule</th><th>Chauffeur</th><th>Retour prévu</th><th>Statut</th></tr></thead>
+                <thead><tr><th>Véhicule</th><th>Conducteur</th><th>Retour prévu</th><th>Statut</th></tr></thead>
                 <tbody>
                     @foreach($activeAssignments as $a)
+                        @php
+                            $conductorName = $a->driver?->full_name
+                                ?? $a->collaborator?->name
+                                ?? '—';
+                            $isCollaborator = is_null($a->driver_id) && !is_null($a->user_id);
+                        @endphp
                         <tr>
                             <td style="font-weight:600;">{{ $a->vehicle?->plate ?? '—' }}</td>
-                            <td>{{ $a->driver?->full_name ?? '—' }}</td>
+                            <td>
+                                <span>{{ $conductorName }}</span>
+                                @if($isCollaborator)
+                                    <span style="font-size:.68rem;background:#ede9fe;color:#5b21b6;padding:.1rem .35rem;border-radius:99px;font-weight:600;margin-left:.3rem;">Collab.</span>
+                                @endif
+                            </td>
                             <td style="color:#64748b;font-size:.8rem;">{{ $a->datetime_end_planned?->format('d/m H:i') ?? '—' }}</td>
                             <td>
                                 @if($a->status === 'in_progress')
@@ -297,7 +307,7 @@
                 <svg width="15" height="15" fill="none" viewBox="0 0 24 24" style="display:inline;vertical-align:middle;margin-right:.3rem;"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.77 3.77z" stroke="#7c3aed" stroke-width="2"/></svg>
                 Réparations en cours
             </span>
-            <a href="#" class="section-link">Tout voir →</a>
+            <a href="{{ route('repairs.index') }}" class="section-link">Tout voir →</a>
         </div>
         @if($ongoingRepairs->isEmpty())
             <div style="padding:2rem;text-align:center;color:#94a3b8;font-size:.875rem;">Aucune réparation en cours</div>

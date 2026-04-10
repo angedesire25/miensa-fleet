@@ -21,7 +21,11 @@ class InfractionController extends Controller
 
     public function index(Request $request): View
     {
-        $query = Infraction::with(['vehicle', 'driver', 'user', 'createdBy']);
+        $showArchived = $request->boolean('archived');
+
+        $query = $showArchived
+            ? Infraction::onlyTrashed()->with(['vehicle', 'driver', 'user', 'createdBy'])
+            : Infraction::with(['vehicle', 'driver', 'user', 'createdBy']);
 
         if ($request->filled('q')) {
             $q = $request->q;
@@ -33,15 +37,15 @@ class InfractionController extends Controller
             });
         }
 
-        if ($request->filled('status') && $request->status !== 'all') {
+        if (!$showArchived && $request->filled('status') && $request->status !== 'all') {
             $query->where('status', $request->status);
         }
 
-        if ($request->filled('type') && $request->type !== 'all') {
+        if (!$showArchived && $request->filled('type') && $request->type !== 'all') {
             $query->where('type', $request->type);
         }
 
-        if ($request->filled('payment_status') && $request->payment_status !== 'all') {
+        if (!$showArchived && $request->filled('payment_status') && $request->payment_status !== 'all') {
             $query->where('payment_status', $request->payment_status);
         }
 
@@ -56,11 +60,12 @@ class InfractionController extends Controller
             'ouvertes'     => Infraction::where('status', 'open')->count(),
             'non_payees'   => Infraction::unpaid()->count(),
             'total_amendes'=> (float) Infraction::sum('fine_amount'),
+            'archived'     => Infraction::onlyTrashed()->count(),
         ];
 
         $vehicles = Vehicle::orderBy('brand')->orderBy('model')->get();
 
-        return view('infractions.index', compact('infractions', 'stats', 'vehicles'));
+        return view('infractions.index', compact('infractions', 'stats', 'vehicles', 'showArchived'));
     }
 
     // ── Identification temps-réel (AJAX) ───────────────────────────────────
@@ -84,29 +89,72 @@ class InfractionController extends Controller
         $occurred   = Carbon::parse($request->datetime_occurred);
         $identified = $this->infractionService->identifyDriver((int) $request->vehicle_id, $occurred);
 
+        // ── Affectation ponctuelle : chauffeur professionnel ───────────────
         if ($identified['source'] === 'assignment' && $identified['driver_id']) {
             $driver = Driver::find($identified['driver_id'], ['id', 'full_name', 'matricule']);
             return response()->json([
-                'type'   => 'driver',
-                'id'     => $driver->id,
-                'name'   => $driver->full_name,
-                'ref'    => $driver->matricule ?? '',
-                'source' => 'Affectation chauffeur',
+                'type'         => 'driver',
+                'id'           => $driver->id,
+                'name'         => $driver->full_name,
+                'ref'          => $driver->matricule ?? '',
+                'source'       => 'Affectation chauffeur',
+                'is_permanent' => false,
             ]);
         }
 
+        // ── Affectation ponctuelle : collaborateur ─────────────────────────
+        if ($identified['source'] === 'assignment' && $identified['user_id']) {
+            $user = User::find($identified['user_id'], ['id', 'name', 'email', 'department']);
+            return response()->json([
+                'type'         => 'user',
+                'id'           => $user->id,
+                'name'         => $user->name,
+                'ref'          => $user->department ?? $user->email ?? '',
+                'source'       => 'Affectation (collaborateur)',
+                'is_permanent' => false,
+            ]);
+        }
+
+        // ── Demande de véhicule ────────────────────────────────────────────
         if ($identified['source'] === 'request' && $identified['user_id']) {
             $user = User::find($identified['user_id'], ['id', 'name', 'email', 'department']);
             return response()->json([
-                'type'   => 'user',
-                'id'     => $user->id,
-                'name'   => $user->name,
-                'ref'    => $user->department ?? $user->email ?? '',
-                'source' => 'Demande de véhicule',
+                'type'         => 'user',
+                'id'           => $user->id,
+                'name'         => $user->name,
+                'ref'          => $user->department ?? $user->email ?? '',
+                'source'       => 'Demande de véhicule',
+                'is_permanent' => false,
             ]);
         }
 
-        return response()->json(['type' => 'unknown']);
+        // ── Affectation permanente (conducteur attitré) ────────────────────
+        if ($identified['source'] === 'permanent') {
+            if ($identified['driver_id']) {
+                $driver = Driver::find($identified['driver_id'], ['id', 'full_name', 'matricule']);
+                return response()->json([
+                    'type'         => 'driver',
+                    'id'           => $driver->id,
+                    'name'         => $driver->full_name,
+                    'ref'          => $driver->matricule ?? '',
+                    'source'       => 'Affectation permanente',
+                    'is_permanent' => true,
+                ]);
+            }
+            if ($identified['user_id']) {
+                $user = User::find($identified['user_id'], ['id', 'name', 'email', 'department']);
+                return response()->json([
+                    'type'         => 'user',
+                    'id'           => $user->id,
+                    'name'         => $user->name,
+                    'ref'          => $user->department ?? $user->email ?? '',
+                    'source'       => 'Affectation permanente',
+                    'is_permanent' => true,
+                ]);
+            }
+        }
+
+        return response()->json(['type' => 'unknown', 'is_permanent' => false]);
     }
 
     // ── Création ───────────────────────────────────────────────────────────
@@ -114,9 +162,10 @@ class InfractionController extends Controller
     public function create(): View
     {
         $vehicles = Vehicle::orderBy('brand')->orderBy('model')->get();
-        $drivers  = Driver::where('status', 'active')->orderBy('full_name')->get();
+        $drivers       = Driver::where('status', 'active')->orderBy('full_name')->get();
+        $collaborators = User::role('collaborator')->orderBy('name')->get();
 
-        return view('infractions.create', compact('vehicles', 'drivers'));
+        return view('infractions.create', compact('vehicles', 'drivers', 'collaborators'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -127,9 +176,9 @@ class InfractionController extends Controller
             'user_id'           => ['nullable', 'exists:users,id'],
             'datetime_occurred' => ['required', 'date', 'before_or_equal:now'],
             'location'          => ['nullable', 'string', 'max:255'],
-            'type'              => ['required', 'in:speeding,red_light,parking,phone_use,seatbelt,alcohol,dangerous_driving,overload,invalid_documents,other'],
+            'type'              => ['required', 'in:speeding,red_light,illegal_parking,drunk_driving,phone_use,accident,seatbelt,overloading,other'],
             'description'       => ['nullable', 'string', 'max:1000'],
-            'source'            => ['required', 'in:police,radar,internal,reported_by_driver,third_party'],
+            'source'            => ['required', 'in:police_report,speed_camera,internal_report,joint_report,other'],
             'pv_reference'      => ['nullable', 'string', 'max:100'],
             'fine_amount'       => ['nullable', 'numeric', 'min:0'],
             'imputation'        => ['nullable', 'in:company,driver'],
@@ -193,9 +242,9 @@ class InfractionController extends Controller
             'driver_id'         => ['nullable', 'exists:drivers,id'],
             'datetime_occurred' => ['required', 'date', 'before_or_equal:now'],
             'location'          => ['nullable', 'string', 'max:255'],
-            'type'              => ['required', 'in:speeding,red_light,parking,phone_use,seatbelt,alcohol,dangerous_driving,overload,invalid_documents,other'],
+            'type'              => ['required', 'in:speeding,red_light,illegal_parking,drunk_driving,phone_use,accident,seatbelt,overloading,other'],
             'description'       => ['nullable', 'string', 'max:1000'],
-            'source'            => ['required', 'in:police,radar,internal,reported_by_driver,third_party'],
+            'source'            => ['required', 'in:police_report,speed_camera,internal_report,joint_report,other'],
             'pv_reference'      => ['nullable', 'string', 'max:100'],
             'fine_amount'       => ['nullable', 'numeric', 'min:0'],
             'internal_sanction' => ['nullable', 'string', 'max:500'],
@@ -255,7 +304,7 @@ class InfractionController extends Controller
 
     public function close(Infraction $infraction): RedirectResponse
     {
-        $infraction->update(['status' => 'closed']);
+        $infraction->update(['status' => 'processed']);
 
         return redirect()->route('infractions.show', $infraction)
                          ->with('swal_success', 'Infraction clôturée.');
@@ -269,6 +318,24 @@ class InfractionController extends Controller
         $infraction->delete();
 
         return redirect()->route('infractions.index')
-                         ->with('swal_success', "Infraction #{$id} supprimée.");
+                         ->with('swal_success', "Infraction #{$id} archivée.");
+    }
+
+    public function restore(int $id): RedirectResponse
+    {
+        abort_unless(auth()->user()->hasAnyRole(['super_admin', 'admin']), 403);
+        $infraction = Infraction::onlyTrashed()->findOrFail($id);
+        $infraction->restore();
+        return redirect()->route('infractions.index')
+                         ->with('swal_success', "Infraction #{$id} restaurée.");
+    }
+
+    public function forceDestroy(int $id): RedirectResponse
+    {
+        abort_unless(auth()->user()->hasAnyRole(['super_admin', 'admin']), 403);
+        $infraction = Infraction::onlyTrashed()->findOrFail($id);
+        $infraction->forceDelete();
+        return redirect()->route('infractions.index', ['archived' => 1])
+                         ->with('swal_success', "Infraction #{$id} supprimée définitivement.");
     }
 }

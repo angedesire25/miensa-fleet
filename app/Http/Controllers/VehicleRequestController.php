@@ -23,11 +23,15 @@ class VehicleRequestController extends Controller
 
     public function index(Request $request): View
     {
-        $user  = Auth::user();
-        $query = VehicleRequest::with(['requester', 'vehicle.profilePhoto', 'reviewedBy']);
+        $user         = Auth::user();
+        $showArchived = $request->boolean('archived')
+                        && $user->hasAnyRole(['super_admin', 'admin', 'fleet_manager', 'controller', 'director']);
+
+        $query = $showArchived
+            ? VehicleRequest::onlyTrashed()->with(['requester', 'vehicle.profilePhoto', 'reviewedBy'])
+            : VehicleRequest::with(['requester', 'vehicle.profilePhoto', 'reviewedBy']);
 
         // Collaborateur et chauffeur ne voient que leurs propres demandes
-        // Seuls les admins / responsables / contrôleurs / directeurs voient tout
         if (!$user->hasAnyRole(['super_admin', 'admin', 'fleet_manager', 'controller', 'director'])) {
             $query->where('requester_id', $user->id);
         }
@@ -42,11 +46,11 @@ class VehicleRequestController extends Controller
             });
         }
 
-        if ($request->filled('status') && $request->status !== 'all') {
+        if (!$showArchived && $request->filled('status') && $request->status !== 'all') {
             $query->where('status', $request->status);
         }
 
-        if ($request->boolean('urgent_only')) {
+        if (!$showArchived && $request->boolean('urgent_only')) {
             $query->where('is_urgent', true);
         }
 
@@ -60,18 +64,18 @@ class VehicleRequestController extends Controller
         $isRestricted = !$user->hasAnyRole(['super_admin', 'admin', 'fleet_manager', 'controller', 'director']);
 
         $stats = [
-            'total'       => VehicleRequest::when($isRestricted, fn($q) => $q->where('requester_id', $user->id))->count(),
-            'pending'     => VehicleRequest::where('status', 'pending')
+            'total'     => VehicleRequest::when($isRestricted, fn($q) => $q->where('requester_id', $user->id))->count(),
+            'pending'   => VehicleRequest::where('status', 'pending')
                 ->when($isRestricted, fn($q) => $q->where('requester_id', $user->id))->count(),
-            'active'      => VehicleRequest::whereIn('status', ['approved', 'confirmed', 'in_progress'])
+            'active'    => VehicleRequest::whereIn('status', ['approved', 'confirmed', 'in_progress'])
                 ->when($isRestricted, fn($q) => $q->where('requester_id', $user->id))->count(),
-            'completed'   => VehicleRequest::where('status', 'completed')
+            'completed' => VehicleRequest::where('status', 'completed')
                 ->when($isRestricted, fn($q) => $q->where('requester_id', $user->id))->count(),
-            // Urgentes : visibles seulement par les gestionnaires
-            'urgent'      => $isRestricted ? 0 : VehicleRequest::where('status', 'pending')->where('is_urgent', true)->count(),
+            'urgent'    => $isRestricted ? 0 : VehicleRequest::where('status', 'pending')->where('is_urgent', true)->count(),
+            'archived'  => $isRestricted ? 0 : VehicleRequest::onlyTrashed()->count(),
         ];
 
-        return view('requests.index', compact('requests', 'stats'));
+        return view('requests.index', compact('requests', 'stats', 'showArchived'));
     }
 
     // ── Détail ─────────────────────────────────────────────────────────────
@@ -290,6 +294,44 @@ class VehicleRequestController extends Controller
         } catch (\InvalidArgumentException $e) {
             return back()->with('swal_error', $e->getMessage());
         }
+    }
+
+    // ── Archivage / Restauration / Suppression définitive ─────────────────
+
+    /** Archivage (soft delete) — admin/super_admin */
+    public function destroy(VehicleRequest $vehicleRequest): RedirectResponse
+    {
+        abort_unless(Auth::user()->hasAnyRole(['super_admin', 'admin']), 403);
+        abort_if($vehicleRequest->status === 'in_progress', 403, 'Impossible d\'archiver une demande en cours.');
+
+        $vehicleRequest->delete();
+
+        return redirect()->route('requests.index')
+            ->with('swal_success', "Demande #{$vehicleRequest->id} archivée.");
+    }
+
+    /** Restauration depuis les archives */
+    public function restore(int $id): RedirectResponse
+    {
+        abort_unless(Auth::user()->hasAnyRole(['super_admin', 'admin']), 403);
+
+        $vr = VehicleRequest::onlyTrashed()->findOrFail($id);
+        $vr->restore();
+
+        return redirect()->route('requests.index')
+            ->with('swal_success', "Demande #{$id} restaurée.");
+    }
+
+    /** Suppression définitive (irréversible) — admin/super_admin */
+    public function forceDestroy(int $id): RedirectResponse
+    {
+        abort_unless(Auth::user()->hasAnyRole(['super_admin', 'admin']), 403);
+
+        $vr = VehicleRequest::onlyTrashed()->findOrFail($id);
+        $vr->forceDelete();
+
+        return redirect()->route('requests.index', ['archived' => 1])
+            ->with('swal_success', "Demande #{$id} supprimée définitivement.");
     }
 
     /** Annuler une demande */

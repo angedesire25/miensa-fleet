@@ -28,7 +28,23 @@
       "Bash(grep -v \"^$\")",
       "Bash(grep -n \"enum\\\\|status\" c:/laragon/www/miensa-fleet/database/migrations/*vehicle_request*.php)",
       "Bash(grep -n \"enum\\\\|repair_type\" c:/laragon/www/miensa-fleet/database/migrations/*repair*.php)",
-      "Bash(php -r \"echo date\\('Y_m_d_His'\\);\")"
+      "Bash(php -r \"echo date\\('Y_m_d_His'\\);\")",
+      "Bash(grep -n \"repairs.delete\\\\|repairs\\\\.\" c:/laragon/www/miensa-fleet/database/seeders/*.php)",
+      "Bash(php -r \"echo 'upload_max_filesize: ' . ini_get\\('upload_max_filesize'\\) . PHP_EOL . 'post_max_size: ' . ini_get\\('post_max_size'\\) . PHP_EOL;\")",
+      "Bash(php \"c:/laragon/www/miensa-fleet/artisan\" view:clear)",
+      "Bash(php \"c:/laragon/www/miensa-fleet/artisan\" config:clear)",
+      "Bash(php \"c:/laragon/www/miensa-fleet/artisan\" migrate --path=\"database/migrations/2026_04_10_100000_create_vehicle_cleanings_table.php\")",
+      "Bash(php \"c:/laragon/www/miensa-fleet/artisan\" db:seed --class=RoleAndPermissionSeeder)",
+      "Bash(php \"c:/laragon/www/miensa-fleet/artisan\" route:list --name=cleanings)",
+      "Bash(sed -n '250,270p' c:/laragon/www/miensa-fleet/app/Http/Controllers/IncidentController.php)",
+      "Bash(sed -n '135,155p' c:/laragon/www/miensa-fleet/app/Http/Controllers/GarageController.php)",
+      "Bash(sed -n '305,320p' c:/laragon/www/miensa-fleet/app/Http/Controllers/InfractionController.php)",
+      "Bash(php -l app/Http/Controllers/IncidentController.php)",
+      "Bash(php -l app/Http/Controllers/GarageController.php)",
+      "Bash(php -l app/Http/Controllers/InfractionController.php)",
+      "Bash(php -l app/Http/Controllers/InspectionController.php)",
+      "Bash(mysql -u root miensah -e \"SHOW COLUMNS FROM infractions LIKE 'source';\")",
+      "Bash(php -l c:/laragon/www/miensa-fleet/app/Http/Controllers/InfractionController.php)"
     ],
     "additionalDirectories": [
       "c:\\laragon\\www\\miensa-fleet\\resources\\views"

@@ -44,10 +44,27 @@
       "Bash(php -l app/Http/Controllers/InfractionController.php)",
       "Bash(php -l app/Http/Controllers/InspectionController.php)",
       "Bash(mysql -u root miensah -e \"SHOW COLUMNS FROM infractions LIKE 'source';\")",
-      "Bash(php -l c:/laragon/www/miensa-fleet/app/Http/Controllers/InfractionController.php)"
+      "Bash(php -l c:/laragon/www/miensa-fleet/app/Http/Controllers/InfractionController.php)",
+      "Read(//c/laragon/etc/apache2/sites-enabled//**)",
+      "Read(//c/laragon/etc/**)",
+      "Read(//c/laragon/etc//**)",
+      "Read(//c/Windows/System32/drivers/etc/**)",
+      "Bash('n$entry\"')",
+      "Bash(Write-Host 'Entrée ajoutée : miensafleet.test')",
+      "Bash(powershell -Command ':*)",
+      "Read(//dev/**)",
+      "Bash(cmd.exe /c \"echo 127.0.0.1      miensafleet.test    #laragon magic! >> C:\\\\Windows\\\\System32\\\\drivers\\\\etc\\\\hosts\")",
+      "Bash(cmd.exe /c \"echo.>> C:\\\\Windows\\\\System32\\\\drivers\\\\etc\\\\hosts && echo 127.0.0.1      miensafleet.test    #laragon magic!>> C:\\\\Windows\\\\System32\\\\drivers\\\\etc\\\\hosts\")",
+      "Bash(cmd.exe /c \"type C:\\\\Windows\\\\System32\\\\drivers\\\\etc\\\\hosts | findstr miensafleet\")",
+      "Bash(n127.0.0.1      miensafleet.test)",
+      "Bash(cmd.exe /c \"powershell -Command \\\\\"Start-Process powershell -ArgumentList '-NoProfile -Command Add-Content -Path C:\\\\\\\\Windows\\\\\\\\System32\\\\\\\\drivers\\\\\\\\etc\\\\\\\\hosts -Value \\\\\\\\\\\\\"`n127.0.0.1      miensafleet.test    #laragon magic!\\\\\\\\\\\\\"' -Verb RunAs -Wait\\\\\"\")",
+      "Bash(cat)",
+      "Bash(cmd.exe /c \"powershell -Command \\\\\"Start-Process powershell -ArgumentList '-File C:\\\\\\\\tmp\\\\\\\\add_hosts.ps1' -Verb RunAs -Wait\\\\\"\")"
     ],
     "additionalDirectories": [
-      "c:\\laragon\\www\\miensa-fleet\\resources\\views"
+      "c:\\laragon\\www\\miensa-fleet\\resources\\views",
+      "c:\\laragon\\etc\\apache2\\sites-enabled",
+      "C:\\Windows\\System32\\drivers\\etc"
     ]
   }
 }

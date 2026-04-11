@@ -21,6 +21,18 @@ use App\Http\Controllers\VehicleDocumentController;
 use App\Http\Controllers\VehicleRequestController;
 use Illuminate\Support\Facades\Route;
 
+/*
+|--------------------------------------------------------------------------
+| Routes TENANT — accessibles via {slug}.miensafleet.ci
+|
+| Le middleware 'needs.tenant' :
+|   1. Cherche le tenant via SubdomainTenantFinder (sous-domaine)
+|   2. Commute la connexion DB vers la base du tenant
+|   3. Retourne 404 si aucun tenant trouvé
+|--------------------------------------------------------------------------
+*/
+Route::middleware('needs.tenant')->group(function () {
+
 // ── Authentification ────────────────────────────────────────────────────────
 
 Route::middleware('guest')->group(function () {
@@ -223,4 +235,7 @@ Route::middleware('auth')->group(function () {
         Route::post('utilisateurs/{user}/reinitialiser-mdp', [UserController::class, 'resetPassword'])->name('users.reset-password');
         Route::delete('utilisateurs/{id}/supprimer-definitivement', [UserController::class, 'forceDestroy'])->name('users.force-destroy');
     });
-});
+
+}); // ── fin groupe auth ─────────────────────────────────────────────────────
+
+}); // ── fin groupe needs.tenant ─────────────────────────────────────────────

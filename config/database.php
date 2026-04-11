@@ -64,6 +64,36 @@ return [
             ]) : [],
         ],
 
+        // ── Base centrale : tenants, plans, abonnements, factures ──────────────
+        'landlord' => [
+            'driver'    => 'mysql',
+            'host'      => env('LANDLORD_DB_HOST', env('DB_HOST', '127.0.0.1')),
+            'port'      => env('LANDLORD_DB_PORT', env('DB_PORT', '3306')),
+            'database'  => env('LANDLORD_DB_DATABASE', 'miensafleet_landlord'),
+            'username'  => env('LANDLORD_DB_USERNAME', env('DB_USERNAME', 'root')),
+            'password'  => env('LANDLORD_DB_PASSWORD', env('DB_PASSWORD', '')),
+            'charset'   => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix'    => '',
+            'strict'    => true,
+            'engine'    => null,
+        ],
+
+        // ── Base tenant : connexion dynamique commutée par SwitchTenantDatabaseTask
+        'tenant' => [
+            'driver'    => 'mysql',
+            'host'      => env('DB_HOST', '127.0.0.1'),
+            'port'      => env('DB_PORT', '3306'),
+            'database'  => null, // rempli dynamiquement à chaque requête
+            'username'  => env('DB_USERNAME', 'root'),
+            'password'  => env('DB_PASSWORD', ''),
+            'charset'   => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix'    => '',
+            'strict'    => true,
+            'engine'    => null,
+        ],
+
         'mariadb' => [
             'driver' => 'mariadb',
             'url' => env('DB_URL'),

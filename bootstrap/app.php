@@ -11,12 +11,22 @@ return Application::configure(basePath: dirname(__DIR__))
         web: __DIR__.'/../routes/web.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
+        then: function () {
+            // Routes landlord : accessibles depuis le domaine principal (miensafleet.ci)
+            // Ces routes ne nécessitent PAS de tenant.
+            \Illuminate\Support\Facades\Route::middleware('web')
+                ->group(base_path('routes/landlord.php'));
+        },
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // ── Aliases de middleware ─────────────────────────────────────────
         $middleware->alias([
-            'role'       => \Spatie\Permission\Middleware\RoleMiddleware::class,
-            'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
+            'role'               => \Spatie\Permission\Middleware\RoleMiddleware::class,
+            'permission'         => \Spatie\Permission\Middleware\PermissionMiddleware::class,
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
+            // Appliqué uniquement sur le groupe de routes tenant (routes/web.php)
+            // Sur les routes landlord (pricing, signup), ce middleware N'EST PAS utilisé.
+            'needs.tenant'       => \Spatie\Multitenancy\Http\Middleware\NeedsTenant::class,
         ]);
     })
     ->withSchedule(function (Schedule $schedule): void {

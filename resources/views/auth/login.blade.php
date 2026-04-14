@@ -329,8 +329,8 @@
                 <div style="flex:1;height:1px;background:#e5e7eb;"></div>
             </div>
 
-            {{-- ── Panneau de test rapide (local uniquement) ────────────── --}}
-            @if(app()->isLocal())
+            {{-- ── Panneau de test rapide (local, tenant dev uniquement) ─── --}}
+            @if(app()->isLocal() && \App\Models\Tenant::current()?->slug === 'dev')
             <div style="border:1.5px dashed #d1d5db;border-radius:.6rem;overflow:hidden;">
                 <div style="background:#fafafa;padding:.55rem .85rem;display:flex;align-items:center;gap:.5rem;border-bottom:1px solid #e5e7eb;">
                     <svg width="13" height="13" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="#f59e0b" stroke-width="2"/><path d="M12 8v4m0 4h.01" stroke="#f59e0b" stroke-width="2" stroke-linecap="round"/></svg>

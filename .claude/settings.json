@@ -59,7 +59,11 @@
       "Bash(n127.0.0.1      miensafleet.test)",
       "Bash(cmd.exe /c \"powershell -Command \\\\\"Start-Process powershell -ArgumentList '-NoProfile -Command Add-Content -Path C:\\\\\\\\Windows\\\\\\\\System32\\\\\\\\drivers\\\\\\\\etc\\\\\\\\hosts -Value \\\\\\\\\\\\\"`n127.0.0.1      miensafleet.test    #laragon magic!\\\\\\\\\\\\\"' -Verb RunAs -Wait\\\\\"\")",
       "Bash(cat)",
-      "Bash(cmd.exe /c \"powershell -Command \\\\\"Start-Process powershell -ArgumentList '-File C:\\\\\\\\tmp\\\\\\\\add_hosts.ps1' -Verb RunAs -Wait\\\\\"\")"
+      "Bash(cmd.exe /c \"powershell -Command \\\\\"Start-Process powershell -ArgumentList '-File C:\\\\\\\\tmp\\\\\\\\add_hosts.ps1' -Verb RunAs -Wait\\\\\"\")",
+      "Bash(cmd.exe /c \"type C:\\\\laragon\\\\etc\\\\apache2\\\\sites-enabled\\\\auto.miensa-fleet.test.conf\")",
+      "Bash(cmd.exe /c \"type C:\\\\Windows\\\\System32\\\\drivers\\\\etc\\\\hosts | findstr miensa\")",
+      "Bash(cmd.exe /c \"type C:\\\\Windows\\\\System32\\\\drivers\\\\etc\\\\hosts\")",
+      "Bash(ls c:/laragon/www/miensa-fleet/database/migrations/*.php)"
     ],
     "additionalDirectories": [
       "c:\\laragon\\www\\miensa-fleet\\resources\\views",

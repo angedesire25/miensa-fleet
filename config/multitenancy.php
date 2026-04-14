@@ -43,6 +43,16 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Tenant par défaut en développement local (Laragon)
+    | Slug utilisé quand aucun sous-domaine ne correspond à un tenant.
+    | Permet d'accéder au panel via l'URL auto-générée (ex: miensa-fleet.test).
+    | Laisser null (ou ne pas définir DEV_TENANT_SLUG) en production.
+    |--------------------------------------------------------------------------
+    */
+    'dev_tenant_slug' => env('DEV_TENANT_SLUG', null),
+
+    /*
+    |--------------------------------------------------------------------------
     | Switch Tasks
     | Tâches exécutées lors du basculement vers un tenant.
     |--------------------------------------------------------------------------

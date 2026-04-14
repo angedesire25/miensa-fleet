@@ -12,10 +12,17 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
         then: function () {
-            // Routes landlord : accessibles depuis le domaine principal (miensafleet.ci)
-            // Ces routes ne nécessitent PAS de tenant.
+            $landlordDomain = env('LANDLORD_DOMAIN', 'miensafleet.ci');
+
+            // Routes publiques landlord (pricing, signup) — domaine principal seulement
             \Illuminate\Support\Facades\Route::middleware('web')
+                ->domain($landlordDomain)
                 ->group(base_path('routes/landlord.php'));
+
+            // Routes panel propriétaire — sous-domaine admin uniquement
+            \Illuminate\Support\Facades\Route::middleware('web')
+                ->domain('admin.' . $landlordDomain)
+                ->group(base_path('routes/admin.php'));
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
@@ -78,5 +85,15 @@ return Application::configure(basePath: dirname(__DIR__))
                  ->withoutOverlapping();
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // Quand une route tenant est accédée depuis le domaine landlord
+        // (ex: miensa-fleet.test/login au lieu de dev.miensa-fleet.test/login),
+        // rediriger vers la page d'accueil publique plutôt qu'afficher une erreur 500.
+        $exceptions->render(function (
+            \Spatie\Multitenancy\Exceptions\NoCurrentTenant $e,
+            \Illuminate\Http\Request $request
+        ) {
+            return redirect()
+                ->route('landlord.home')
+                ->with('info', 'Veuillez accéder au panel via votre sous-domaine dédié.');
+        });
     })->create();

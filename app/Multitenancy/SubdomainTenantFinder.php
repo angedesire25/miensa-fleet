@@ -9,36 +9,56 @@ use Spatie\Multitenancy\TenantFinder\TenantFinder;
 /**
  * Identifie le tenant à partir du sous-domaine.
  *
- * geomatos.miensafleet.ci  →  slug = "geomatos"  →  Tenant::where('slug', 'geomatos')
+ * Production :  geomatos.miensafleet.ci   →  slug "geomatos"
+ * Dev Laragon : geomatos.miensafleet.test →  slug "geomatos"
  *
- * En développement local (Laragon), les vhosts sont configurés ainsi :
- *   miensafleet.test          →  landlord (pas de tenant)
- *   geomatos.miensafleet.test →  tenant geomatos
- *
- * La variable LANDLORD_DOMAIN (.env) définit le domaine racine.
- * Par défaut : miensafleet.ci  (prod) ou  miensafleet.test (dev)
+ * Fallback local (DEV_TENANT_SLUG) :
+ *   Quand APP_ENV=local et que l'hôte ne correspond à aucun sous-domaine connu
+ *   (ex: miensa-fleet.test généré par Laragon), on utilise le tenant défini
+ *   par DEV_TENANT_SLUG dans .env. Aucune entrée hosts supplémentaire requise.
  */
 class SubdomainTenantFinder extends TenantFinder
 {
     public function findForRequest(Request $request): ?Tenant
     {
-        $host = $request->getHost();                   // ex: geomatos.miensafleet.ci
+        $host           = $request->getHost();
+        $landlordDomain = config('multitenancy.landlord_domain');
 
-        $landlordDomain = config('multitenancy.landlord_domain'); // ex: miensafleet.ci
-
-        // Pas de tenant sur le domaine racine lui-même
+        // Domaine racine landlord → pas de tenant
         if ($host === $landlordDomain) {
             return null;
         }
 
-        // Extraire le premier segment = slug du tenant
-        $parts = explode('.', $host);
-        if (count($parts) < 2) {
-            return null;
+        // Extraire le slug depuis le sous-domaine (ex: geomatos.miensafleet.ci → "geomatos")
+        $landlordParts   = explode('.', $landlordDomain);
+        $hostParts       = explode('.', $host);
+        $expectedSegments = count($landlordParts) + 1;
+
+        if (count($hostParts) === $expectedSegments) {
+            $slug = $hostParts[0];
+
+            // Sous-domaines réservés — jamais des tenants
+            if (in_array($slug, ['admin', 'www', 'api', 'mail', 'smtp', 'ftp'])) {
+                return null;
+            }
+
+            $tenant = Tenant::where('slug', $slug)->first();
+            if ($tenant) {
+                return $tenant;
+            }
         }
 
-        $slug = $parts[0]; // "geomatos"
+        // ── Fallback local uniquement ─────────────────────────────────────
+        // Permet d'accéder au panel via l'URL Laragon auto-générée
+        // (ex: miensa-fleet.test) sans modifier le fichier hosts.
+        // Définir DEV_TENANT_SLUG=dev dans .env pour activer.
+        if (app()->isLocal()) {
+            $devSlug = config('multitenancy.dev_tenant_slug');
+            if ($devSlug) {
+                return Tenant::where('slug', $devSlug)->first();
+            }
+        }
 
-        return Tenant::where('slug', $slug)->first();
+        return null;
     }
 }

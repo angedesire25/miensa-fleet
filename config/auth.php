@@ -42,6 +42,12 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        // Guard pour le panel propriétaire (base centrale landlord)
+        'landlord' => [
+            'driver'   => 'session',
+            'provider' => 'landlord_users',
+        ],
     ],
 
     /*
@@ -67,10 +73,10 @@ return [
             'model' => env('AUTH_MODEL', User::class),
         ],
 
-        // 'users' => [
-        //     'driver' => 'database',
-        //     'table' => 'users',
-        // ],
+        'landlord_users' => [
+            'driver' => 'eloquent',
+            'model'  => \App\Models\LandlordUser::class,
+        ],
     ],
 
     /*

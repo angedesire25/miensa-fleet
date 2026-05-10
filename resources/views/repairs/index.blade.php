@@ -165,7 +165,7 @@ tr:hover td{background:#f8fafc;}
                     </td>
                     <td style="font-size:.8rem;">{{ $repair->garage?->name ?? '—' }}</td>
                     @php
-                        $typeLabels = ['body_repair'=>'Carrosserie','mechanical'=>'Mécanique','electrical'=>'Électrique','tire'=>'Pneus','painting'=>'Peinture','glass'=>'Vitrage','full_service'=>'Révision complète','other'=>'Autre'];
+                        $typeLabels = ['corrective'=>'Corrective','preventive'=>'Réglementaire','warranty'=>'Sous Garantie','recall'=>'Rappel Constructeur'];
                     @endphp
                     <td style="font-size:.8rem;">{{ $typeLabels[$repair->repair_type] ?? ucfirst(str_replace('_',' ',$repair->repair_type)) }}</td>
                     <td style="font-size:.8rem;white-space:nowrap;">{{ $repair->datetime_sent?->format('d/m/Y') ?? '—' }}</td>
@@ -185,6 +185,15 @@ tr:hover td{background:#f8fafc;}
                         {{ $repair->invoice_amount ? number_format($repair->invoice_amount, 0, ',', ' ') . ' FCFA' : '—' }}
                     </td>
                     <td style="white-space:nowrap;">
+                        <a href="{{ route('repairs.di-pdf', $repair) }}" class="btn btn-ghost"
+                           style="padding:.3rem .55rem;font-size:.78rem;color:#6366f1;border-color:#e0e7ff;"
+                           title="Fiche DI (PDF)" target="_blank">
+                            <svg width="13" height="13" fill="none" viewBox="0 0 24 24">
+                                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="1.8"/>
+                                <polyline points="14,2 14,8 20,8" stroke="currentColor" stroke-width="1.8"/>
+                                <line x1="16" y1="13" x2="8" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                            </svg>
+                        </a>
                         <a href="{{ route('repairs.show', $repair) }}" class="btn btn-ghost" style="padding:.3rem .65rem;font-size:.78rem;">Voir</a>
                         @can('repairs.delete')
                         @php $canForceDelete = auth()->user()->hasAnyRole(['super_admin', 'admin']); @endphp

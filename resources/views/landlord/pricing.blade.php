@@ -134,6 +134,22 @@
 
 @section('content')
 
+{{-- ── Bannière promotion globale ──────────────────────────────────────────── --}}
+@php
+    $globalPromo = $promotions->first(fn($p) => $p->plan_id === null);
+@endphp
+@if($globalPromo)
+<div style="background:linear-gradient(90deg,#854d0e,#b45309,#854d0e);padding:.65rem 2rem;text-align:center;font-size:.9rem;color:#fef3c7;font-weight:600;letter-spacing:.01em;">
+    🎉
+    @if($globalPromo->badge_text){{ $globalPromo->badge_text }} — @endif
+    {{ $globalPromo->label }}
+    @if($globalPromo->description) · <span style="font-weight:400;opacity:.9;">{{ $globalPromo->description }}</span>@endif
+    @if($globalPromo->ends_at)
+    · <span style="font-weight:400;opacity:.85;">Jusqu'au {{ $globalPromo->ends_at->format('d/m/Y') }}</span>
+    @endif
+</div>
+@endif
+
 {{-- ── Hero ──────────────────────────────────────────────────────────────── --}}
 <section class="hero">
     <div class="hero-badge">
@@ -148,9 +164,29 @@
 <section class="pricing-section">
     <div class="pricing-grid">
         @foreach ($plans as $plan)
-        <div class="pricing-card {{ $plan->is_featured ? 'featured' : '' }}">
+        @php
+            // Promo applicable à ce plan (priorité : promo spécifique > promo globale)
+            $promo = $promotions->first(fn($p) => $p->plan_id === $plan->id)
+                  ?? $promotions->first(fn($p) => $p->plan_id === null);
+
+            $promoMonthly = ($promo && in_array($promo->billing_period, ['all','monthly']) && $plan->price_monthly > 0)
+                ? $promo->applyTo($plan->price_monthly) : null;
+            $promoYearly  = ($promo && in_array($promo->billing_period, ['all','yearly'])  && $plan->price_yearly  > 0)
+                ? $promo->applyTo($plan->price_yearly)  : null;
+        @endphp
+        <div class="pricing-card {{ $plan->is_featured ? 'featured' : '' }}" style="{{ $promo ? 'border-color:#f59e0b;' : '' }}">
             @if($plan->is_featured)
                 <div class="featured-badge">Le plus populaire</div>
+            @endif
+
+            {{-- Badge promo --}}
+            @if($promo)
+            <div style="display:inline-flex;align-items:center;gap:.3rem;background:linear-gradient(90deg,#f59e0b,#d97706);color:white;font-size:.72rem;font-weight:700;padding:.25rem .7rem;border-radius:10px;margin-bottom:.75rem;letter-spacing:.03em;">
+                🏷️ {{ $promo->badge_text ?: $promo->discountLabel() }}
+                @if($promo->ends_at)
+                · jusqu'au {{ $promo->ends_at->format('d/m') }}
+                @endif
+            </div>
             @endif
 
             <div class="plan-name">{{ $plan->name }}</div>
@@ -161,10 +197,30 @@
                     <div class="plan-free">Gratuit</div>
                     <div class="plan-period">Pour toujours</div>
                 @else
+                    {{-- Prix mensuel --}}
+                    @if($promoMonthly)
+                    <div style="display:flex;align-items:baseline;gap:.5rem;">
+                        <div class="plan-amount" style="color:#f59e0b;">
+                            <sup>FCFA</sup>{{ number_format($promoMonthly, 0, ',', ' ') }}
+                        </div>
+                        <span style="font-size:.9rem;color:#94a3b8;text-decoration:line-through;">{{ number_format($plan->price_monthly, 0, ',', ' ') }}</span>
+                    </div>
+                    @else
                     <div class="plan-amount">
                         <sup>FCFA</sup>{{ number_format($plan->price_monthly, 0, ',', ' ') }}
                     </div>
-                    <div class="plan-period">/ mois · {{ number_format($plan->price_yearly, 0, ',', ' ') }} FCFA/an</div>
+                    @endif
+
+                    {{-- Prix annuel --}}
+                    <div class="plan-period">
+                        / mois ·
+                        @if($promoYearly)
+                        <span style="color:#f59e0b;font-weight:700;">{{ number_format($promoYearly, 0, ',', ' ') }} FCFA/an</span>
+                        <span style="text-decoration:line-through;opacity:.6;">{{ number_format($plan->price_yearly, 0, ',', ' ') }}</span>
+                        @else
+                        {{ number_format($plan->price_yearly, 0, ',', ' ') }} FCFA/an
+                        @endif
+                    </div>
                 @endif
             </div>
 

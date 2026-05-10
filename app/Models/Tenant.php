@@ -28,7 +28,7 @@ class Tenant extends BaseTenant
 
     protected $fillable = [
         'name', 'slug', 'domain', 'database', 'plan_id',
-        'status', 'trial_ends_at', 'subscribed_at', 'suspended_at',
+        'status', 'trial_ends_at', 'subscribed_at', 'suspended_at', 'suspension_reason',
         'contact_name', 'contact_email', 'contact_phone',
         'country', 'timezone', 'max_vehicles', 'max_users',
     ];

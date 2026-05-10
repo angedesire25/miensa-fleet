@@ -14,6 +14,7 @@
     <style>
         * { box-sizing: border-box; }
         body { margin: 0; font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; background: #f1f5f9; }
+        body.sidebar-open { overflow: hidden; }
 
         /* ── Sidebar ─────────────────────────────────────────────────── */
         .sidebar {
@@ -21,6 +22,7 @@
             background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
             display: flex; flex-direction: column; z-index: 50;
             overflow-y: auto;
+            transition: transform .28s cubic-bezier(.4,0,.2,1);
         }
         .sidebar-logo {
             padding: 1.25rem 1.5rem; border-bottom: 1px solid rgba(255,255,255,.07);
@@ -58,15 +60,38 @@
             border-radius: 99px; min-width: 18px; text-align: center;
         }
 
+        /* ── Mobile sidebar overlay ──────────────────────────────────── */
+        .sidebar-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(15,23,42,.55);
+            z-index: 49;
+            backdrop-filter: blur(1px);
+            -webkit-backdrop-filter: blur(1px);
+        }
+        .sidebar-overlay.is-open { display: block; }
+        .sidebar.is-open { transform: translateX(0) !important; }
+
+        /* ── Hamburger button (hidden on desktop) ────────────────────── */
+        .hamburger-btn {
+            display: none;
+            background: none; border: none; cursor: pointer;
+            padding: .4rem .35rem; border-radius: .4rem; color: #374151;
+            transition: background .15s; flex-shrink: 0;
+            align-items: center; justify-content: center;
+        }
+        .hamburger-btn:hover { background: #f1f5f9; }
+
         /* ── Topbar ──────────────────────────────────────────────────── */
         .topbar {
             position: fixed; top: 0; left: 256px; right: 0; height: 60px;
             background: #fff; border-bottom: 1px solid #e2e8f0;
             display: flex; align-items: center; justify-content: space-between;
             padding: 0 1.5rem; z-index: 40;
+            transition: left .28s cubic-bezier(.4,0,.2,1);
         }
-        .topbar-title { font-size: 1rem; font-weight: 600; color: #0f172a; }
-        .topbar-right { display: flex; align-items: center; gap: 1rem; }
+        .topbar-left { display: flex; align-items: center; gap: .35rem; min-width: 0; }
+        .topbar-title { font-size: 1rem; font-weight: 600; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .topbar-right { display: flex; align-items: center; gap: 1rem; flex-shrink: 0; }
         .topbar-btn {
             position: relative; background: none; border: none; cursor: pointer;
             padding: .4rem; border-radius: .4rem; color: #64748b;
@@ -87,6 +112,129 @@
         /* ── Main content ─────────────────────────────────────────────── */
         .main { margin-left: 256px; padding-top: 60px; min-height: 100vh; }
         .page-content { padding: 1.75rem; }
+
+        /* ── Responsive tables ───────────────────────────────────────── */
+        .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+        /* ── Mobile actions (class added by driver forms) ────────────── */
+        .form-actions { display: flex; gap: .75rem; justify-content: flex-end; }
+
+        /* ══════════════════════════════════════════════════════════════
+           RESPONSIVE BREAKPOINTS
+           ══════════════════════════════════════════════════════════════ */
+
+        /* ── Tablet 1024px : sidebar narrower ───────────────────────── */
+        @media (max-width: 1024px) {
+            .sidebar { width: 220px; }
+            .topbar  { left: 220px; }
+            .main    { margin-left: 220px; }
+        }
+
+        /* ── Mobile 768px : sidebar becomes overlay drawer ──────────── */
+        @media (max-width: 768px) {
+            .hamburger-btn { display: flex; }
+
+            .sidebar {
+                width: 270px !important;
+                transform: translateX(-100%);
+                z-index: 100;
+            }
+
+            .topbar { left: 0 !important; padding: 0 .85rem; }
+            .main   { margin-left: 0 !important; }
+            .page-content { padding: 1rem; }
+
+            /* Notification dropdown: cap width on small screens */
+            #notif-dropdown {
+                width: min(360px, calc(100vw - 1.5rem)) !important;
+                right: -.5rem !important;
+            }
+        }
+
+        /* ── Small mobile 640px : form layout ───────────────────────── */
+        @media (max-width: 640px) {
+
+            /* --- 2-col and 3-col grid classes → single column --- */
+            .form-grid-2, .form-grid-3, .form-grid-4, .detail-grid,
+            .sig-grid {
+                grid-template-columns: 1fr !important;
+            }
+
+            /* --- Inline grid-template-columns → single column --- */
+            /* Covers patterns used throughout create/show/edit forms */
+            [style*="grid-template-columns:1fr 1fr"],
+            [style*="grid-template-columns: 1fr 1fr"],
+            [style*="grid-template-columns:1fr 1fr 1fr"],
+            [style*="grid-template-columns: 1fr 1fr 1fr"],
+            [style*="grid-template-columns:2fr 1fr"],
+            [style*="grid-template-columns: 2fr 1fr"],
+            [style*="grid-template-columns:3fr 1fr"],
+            [style*="grid-template-columns: 3fr 1fr"] {
+                grid-template-columns: 1fr !important;
+            }
+
+            /* --- Inline grid-column spans → auto in 1-col grid --- */
+            [style*="grid-column:span 2"], [style*="grid-column: span 2"],
+            [style*="grid-column:span 3"], [style*="grid-column: span 3"],
+            [style*="grid-column:1/-1"],   [style*="grid-column: 1 / -1"] {
+                grid-column: auto !important;
+            }
+
+            /* --- Inline repeat() grids → 3-col wrap (vehicle type picker, etc.) --- */
+            [style*="grid-template-columns:repeat"],
+            [style*="grid-template-columns: repeat"] {
+                grid-template-columns: repeat(3, 1fr) !important;
+            }
+
+            /* --- Inputs: font-size 16px prevents iOS Safari auto-zoom --- */
+            input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=hidden]),
+            select, textarea {
+                font-size: 16px !important;
+            }
+            /* --- Touch-friendly tap targets --- */
+            input:not([type=checkbox]):not([type=radio]):not([type=hidden]),
+            select {
+                min-height: 46px;
+                padding-top: .55rem !important;
+                padding-bottom: .55rem !important;
+            }
+            button:not(.hamburger-btn):not([style*="width:20px"]):not([style*="width:16px"]):not([onclick*="toggle"]) {
+                min-height: 44px;
+            }
+
+            /* --- form-actions: stack buttons vertically --- */
+            .form-actions {
+                flex-direction: column !important;
+                gap: .6rem !important;
+            }
+            .form-actions a,
+            .form-actions button {
+                width: 100% !important;
+                justify-content: center !important;
+                text-align: center;
+            }
+
+            /* --- Section padding reduction --- */
+            .form-section-body,
+            .form-body { padding: .9rem !important; }
+
+            /* --- Page-level two-column layout → stack --- */
+            [style*="grid-template-columns:2fr 1fr"],
+            [style*="grid-template-columns: 2fr 1fr"] {
+                grid-template-columns: 1fr !important;
+            }
+
+            /* --- Header/title size --- */
+            .topbar-title { font-size: .9rem; }
+            h1 { font-size: 1.1rem !important; }
+        }
+
+        /* ── Extra small 400px ───────────────────────────────────────── */
+        @media (max-width: 400px) {
+            .page-content { padding: .75rem; }
+            .topbar { padding: 0 .6rem; }
+            .topbar-right { gap: .5rem; }
+        }
     </style>
 </head>
 <body>
@@ -123,6 +271,7 @@
             $showFlotte      = $user->canAny(['vehicles.view','drivers.view','assignments.view','vehicle_requests.view']);
             $showMaintenance = $user->canAny(['incidents.view','repairs.view','garages.view']);
             $showSuivi       = $user->canAny(['alerts.view','reports.view','infractions.view']);
+            $showCarburant   = $user->can('fuel.view');
 
             // Badge alertes (calculé une seule fois)
             $newAlerts = \App\Models\Alert::where('status','new')->count();
@@ -135,6 +284,12 @@
             $pendingRequests = 0;
             if ($user->can('vehicle_requests.approve')) {
                 $pendingRequests = \App\Models\VehicleRequest::where('status', 'pending')->count();
+            }
+
+            // Badge carburant : demandes en attente (pour les approbateurs)
+            $pendingFuelRequests = 0;
+            if ($user->can('fuel.approve')) {
+                $pendingFuelRequests = \App\Models\FuelRequest::where('status', 'pending')->count();
             }
 
             // Badge contrôles : fiches du jour en brouillon ou soumises (non encore validées)
@@ -279,6 +434,36 @@
             @endcan
         @endif
 
+        {{-- ── CARBURANT ───────────────────────────────────────────────────── --}}
+        @if($showCarburant)
+            <div class="nav-label" style="margin-top:.75rem;">Carburant</div>
+
+            {{-- Tableau de bord carburant (admin / fleet_manager / controller / director) --}}
+            @if($user->canAny(['fuel.approve','fuel.record','fuel.manage_stations','fuel.export']))
+            <a href="{{ route('fuel.admin.dashboard') }}" class="nav-item {{ request()->routeIs('fuel.admin.*') ? 'active' : '' }}">
+                <svg class="nav-icon" fill="none" viewBox="0 0 24 24">
+                    <path d="M3 7h18M3 7l2-4h14l2 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                    <path d="M5 7v10a2 2 0 002 2h10a2 2 0 002-2V7" stroke="currentColor" stroke-width="1.8"/>
+                    <path d="M10 12h4M12 10v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                </svg>
+                Gestion carburant
+                @if($pendingFuelRequests > 0)
+                    <span class="nav-badge">{{ $pendingFuelRequests > 99 ? '99+' : $pendingFuelRequests }}</span>
+                @endif
+            </a>
+            @else
+            {{-- Collaborateur / chauffeur : accès direct à ses demandes --}}
+            <a href="{{ route('fuel.requests.index') }}" class="nav-item {{ request()->routeIs('fuel.requests.*') ? 'active' : '' }}">
+                <svg class="nav-icon" fill="none" viewBox="0 0 24 24">
+                    <path d="M3 7h18M3 7l2-4h14l2 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                    <path d="M5 7v10a2 2 0 002 2h10a2 2 0 002-2V7" stroke="currentColor" stroke-width="1.8"/>
+                    <path d="M10 12h4M12 10v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                </svg>
+                Mes demandes carburant
+            </a>
+            @endif
+        @endif
+
         {{-- ── ADMINISTRATION (super_admin & admin uniquement) ─────────────── --}}
         @if($user->hasAnyRole(['super_admin','admin']))
             <div class="nav-label" style="margin-top:.75rem;">Administration</div>
@@ -334,14 +519,25 @@
 
 </aside>
 
+{{-- ── SIDEBAR OVERLAY (tap outside to close on mobile) ────────────────── --}}
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
 {{-- ── TOPBAR ───────────────────────────────────────────────────────────── --}}
 <header class="topbar">
-    <div>
-        <span class="topbar-title">@yield('page-title', 'Tableau de bord')</span>
-        @hasSection('breadcrumb')
-            <span style="color:#94a3b8;margin:0 .4rem;">·</span>
-            <span style="color:#94a3b8;font-size:.85rem;">@yield('breadcrumb')</span>
-        @endif
+    <div class="topbar-left">
+        {{-- Hamburger — visible on mobile only (CSS controls display) --}}
+        <button class="hamburger-btn" id="hamburger-btn" onclick="toggleSidebar()" aria-label="Menu navigation">
+            <svg width="22" height="22" fill="none" viewBox="0 0 24 24">
+                <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+        </button>
+        <div style="min-width:0;">
+            <span class="topbar-title">@yield('page-title', 'Tableau de bord')</span>
+            @hasSection('breadcrumb')
+                <span style="color:#94a3b8;margin:0 .4rem;font-size:.85rem;">·</span>
+                <span style="color:#94a3b8;font-size:.82rem;">@yield('breadcrumb')</span>
+            @endif
+        </div>
     </div>
     <div class="topbar-right">
         {{-- Notifications dropdown --}}
@@ -533,6 +729,46 @@ SwalToast.fire({
 });
 @endif
 
+// ── Sidebar mobile toggle ──────────────────────────────────────────────────
+function toggleSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    const isOpen  = sidebar.classList.contains('is-open');
+    if (isOpen) {
+        closeSidebar();
+    } else {
+        sidebar.classList.add('is-open');
+        overlay.classList.add('is-open');
+        document.body.classList.add('sidebar-open');
+    }
+}
+function closeSidebar() {
+    document.querySelector('.sidebar').classList.remove('is-open');
+    document.getElementById('sidebar-overlay').classList.remove('is-open');
+    document.body.classList.remove('sidebar-open');
+}
+// Close when a nav link is tapped on mobile
+document.querySelectorAll('.nav-item').forEach(function(item) {
+    item.addEventListener('click', function() {
+        if (window.innerWidth <= 768) closeSidebar();
+    });
+});
+// Restore on resize above breakpoint
+window.addEventListener('resize', function() {
+    if (window.innerWidth > 768) closeSidebar();
+});
+// ── Auto-wrap tables in scrollable container ───────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.page-content table').forEach(function(table) {
+        if (!table.closest('.table-responsive')) {
+            var wrapper = document.createElement('div');
+            wrapper.className = 'table-responsive';
+            table.parentNode.insertBefore(wrapper, table);
+            wrapper.appendChild(table);
+        }
+    });
+});
+
 // ── Dropdown notifications ─────────────────────────────────────────────────
 function toggleNotifDropdown() {
     const dd = document.getElementById('notif-dropdown');
@@ -589,5 +825,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 </script>
+@stack('scripts')
 </body>
 </html>

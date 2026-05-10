@@ -1,7 +1,7 @@
 <?php
 
 use App\Models\Tenant;
-use App\Multitenancy\SubdomainTenantFinder;
+use App\Multitenancy\DomainTenantFinder;
 use App\Multitenancy\SwitchTenantDatabaseTask;
 use Illuminate\Broadcasting\BroadcastEvent;
 use Illuminate\Events\CallQueuedListener;
@@ -30,16 +30,18 @@ return [
     | Détecte le tenant depuis le sous-domaine de la requête.
     |--------------------------------------------------------------------------
     */
-    'tenant_finder' => SubdomainTenantFinder::class,
+    'tenant_finder' => DomainTenantFinder::class,
 
     /*
     |--------------------------------------------------------------------------
     | Domaine racine (landlord)
-    | Production : miensafleet.ci
-    | Développement local : miensafleet.test
+    | Production Geomatos : app.geomatos.com
+    |   → Panel tenant     : app.geomatos.com        (DomainTenantFinder résout Geomatos)
+    |   → Panel admin      : admin.app.geomatos.com  ("admin" est réservé → routes admin.php)
+    | Développement local  : miensa-fleet.test
     |--------------------------------------------------------------------------
     */
-    'landlord_domain' => env('LANDLORD_DOMAIN', 'miensafleet.ci'),
+    'landlord_domain' => env('LANDLORD_DOMAIN', 'miensa-fleet.test'),
 
     /*
     |--------------------------------------------------------------------------

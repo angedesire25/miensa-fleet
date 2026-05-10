@@ -135,6 +135,14 @@
     .btn-ghost:hover {
         background: #f1f5f9;
     }
+    @media (max-width: 640px) {
+        .vpref-grid { grid-template-columns: repeat(4, 1fr) !important; }
+        .form-section-body { padding: .9rem !important; }
+        .btn-submit, .btn-ghost { width: 100%; justify-content: center; }
+    }
+    @media (max-width: 380px) {
+        .vpref-grid { grid-template-columns: repeat(3, 1fr) !important; }
+    }
 </style>
 
 {{-- Erreurs --}}
@@ -249,7 +257,7 @@
 
         <div class="form-group" style="margin-bottom:0;">
             <label class="form-label" style="margin-bottom:.6rem;">Type de véhicule préféré</label>
-            <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:.5rem;">
+            <div class="vpref-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:.5rem;">
                 @foreach (['any' => ['Indifférent', '🔀'], 'city' => ['Citadine', '🏙️'], 'sedan' => ['Berline', '🚗'], 'suv' => ['SUV', '🚙'], 'pickup' => ['Pickup', '🛻'], 'van' => ['Fourgon', '🚐'], 'truck' => ['Camion', '🚚']] as $val => [$lbl, $icon])
                     <label
                         class="type-pref-card {{ old('vehicle_type_preferred', $isEdit ? $vehicleRequest->vehicle_type_preferred : 'any') === $val ? 'selected' : '' }}"
@@ -295,7 +303,7 @@
 </div>
 
 {{-- ── Boutons ──────────────────────────────────────────────────────────── --}}
-<div style="display:flex;gap:.75rem;justify-content:flex-end;">
+<div class="form-actions">
     <a href="{{ $isEdit ? route('requests.show', $vehicleRequest) : route('requests.index') }}" class="btn-ghost">
         Annuler
     </a>

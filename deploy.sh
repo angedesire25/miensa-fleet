@@ -1,74 +1,69 @@
 #!/usr/bin/env bash
-# =============================================================================
-# MiensaFleet — Script de déploiement
+# ════════════════════════════════════════════════════════════════════════════
+# MiensaFleet — Script de déploiement production (OVH VPS / hébergement SSH)
 # Usage : bash deploy.sh
-# =============================================================================
-set -euo pipefail
+# Pré-requis : PHP 8.2+, Composer, Node.js 20+, accès SSH, .env configuré
+# ════════════════════════════════════════════════════════════════════════════
 
-APP_DIR="$(cd "$(dirname "$0")" && pwd)"
-UPLOADS_DIR="${STORAGE_PUBLIC_PATH:-}"
+set -e
 
-echo "▶ MiensaFleet — Déploiement"
-echo "  Dossier app     : $APP_DIR"
+BLUE='\033[0;34m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
+step() { echo -e "\n${BLUE}▶ $1${NC}"; }
+ok()   { echo -e "${GREEN}✓ $1${NC}"; }
+warn() { echo -e "${YELLOW}⚠ $1${NC}"; }
 
-# ── 1. Vérifier que STORAGE_PUBLIC_PATH est défini en production ──────────────
-if [[ -z "$UPLOADS_DIR" ]]; then
-    # Tenter de le lire depuis .env
-    if [[ -f "$APP_DIR/.env" ]]; then
-        UPLOADS_DIR=$(grep -E '^STORAGE_PUBLIC_PATH=' "$APP_DIR/.env" | cut -d'=' -f2- | tr -d '"' | tr -d "'")
-    fi
-fi
+step "1/10 — Vérification de l'environnement"
+php -v | head -1
+composer --version
+node --version
+ok "Environnement OK"
 
-if [[ -n "$UPLOADS_DIR" ]]; then
-    echo "  Uploads persistants : $UPLOADS_DIR"
+step "2/10 — Passage en mode maintenance"
+php artisan down --secret="geomatos-deploy-$(date +%s)" || true
 
-    # Créer le dossier s'il n'existe pas encore
-    mkdir -p "$UPLOADS_DIR"
-    echo "  ✔ Dossier uploads prêt"
-else
-    echo "  ℹ  Pas de STORAGE_PUBLIC_PATH défini — utilisation de storage/app/public/ (mode local)"
-fi
+step "3/10 — Mise à jour du code"
+git pull origin main
+ok "Code à jour"
 
-# ── 2. Pull du code source ────────────────────────────────────────────────────
-echo "▶ Récupération du code (git pull)..."
-git -C "$APP_DIR" pull --ff-only
+step "4/10 — Installation des dépendances PHP (production)"
+composer install --no-dev --optimize-autoloader --no-interaction
+ok "Dépendances PHP installées"
 
-# ── 3. Dépendances Composer ───────────────────────────────────────────────────
-echo "▶ Composer install..."
-composer install --no-dev --optimize-autoloader --no-interaction --quiet
+step "5/10 — Compilation des assets frontend"
+npm ci --production=false
+npm run build
+ok "Assets compilés"
 
-# ── 4. Compilation assets ─────────────────────────────────────────────────────
-echo "▶ Build Vite..."
-npm ci --silent
-npm run build --silent
+step "6/10 — Configuration Laravel"
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+ok "Caches régénérés"
 
-# ── 5. Migrations ─────────────────────────────────────────────────────────────
-echo "▶ Migrations..."
-php "$APP_DIR/artisan" migrate --force
+step "7/10 — Migrations"
+echo "  -> Migration base landlord (miensafleet_landlord)..."
+php artisan migrate --database=landlord --path=database/migrations/landlord --force
 
-# ── 6. Symlink storage ────────────────────────────────────────────────────────
-echo "▶ Storage link..."
-# Supprimer l'ancien symlink si présent
-rm -f "$APP_DIR/public/storage"
-php "$APP_DIR/artisan" storage:link
+echo "  -> Migration base tenant (miensafleet_geomatos)..."
+php artisan tenants:artisan "migrate --force" --tenant=geomatos 2>/dev/null \
+    || php artisan migrate --database=tenant --force
+ok "Migrations appliquées"
 
-# ── 7. Caches ─────────────────────────────────────────────────────────────────
-echo "▶ Optimisation des caches..."
-php "$APP_DIR/artisan" config:cache
-php "$APP_DIR/artisan" route:cache
-php "$APP_DIR/artisan" view:cache
+step "8/10 — Lien symbolique storage"
+php artisan storage:link --force 2>/dev/null || warn "storage:link deja present"
 
-# ── 8. Permissions ────────────────────────────────────────────────────────────
-echo "▶ Permissions..."
-chmod -R 775 "$APP_DIR/storage" "$APP_DIR/bootstrap/cache"
-if [[ -n "$UPLOADS_DIR" ]]; then
-    chmod -R 775 "$UPLOADS_DIR"
-fi
+step "9/10 — Permissions fichiers"
+find storage -type d -exec chmod 775 {} \;
+find storage -type f -exec chmod 664 {} \;
+find bootstrap/cache -type d -exec chmod 775 {} \;
+chmod 664 bootstrap/cache/*.php 2>/dev/null || true
+ok "Permissions OK"
 
-echo ""
-echo "✅ Déploiement terminé."
-echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Uploads stockés dans : ${UPLOADS_DIR:-$APP_DIR/storage/app/public}"
-echo "  Symlink              : $APP_DIR/public/storage"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+step "10/10 — Sortie du mode maintenance"
+php artisan up
+
+echo -e "\n${GREEN}================================================${NC}"
+echo -e "${GREEN}  Deploiement termine !${NC}"
+echo -e "${GREEN}  Panel fleet : https://app.geomatos.com${NC}"
+echo -e "${GREEN}  Panel admin : https://admin.app.geomatos.com${NC}"
+echo -e "${GREEN}================================================${NC}\n"

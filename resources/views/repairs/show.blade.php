@@ -13,11 +13,30 @@
 .btn-primary{background:linear-gradient(135deg,#10b981,#059669);color:#fff;}
 .btn-ghost{background:#f8fafc;color:#374151;border:1.5px solid #e2e8f0;}
 .btn-ghost:hover{background:#f1f5f9;}
+.btn-pdf{background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;}
 .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;padding:1.25rem;}
 .detail-item label{font-size:.72rem;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:.25rem;}
 .detail-item span{font-size:.875rem;color:#0f172a;}
 .form-control{padding:.5rem .75rem;border:1.5px solid #e2e8f0;border-radius:.45rem;font-size:.855rem;color:#0f172a;outline:none;background:#fff;width:100%;box-sizing:border-box;}
 .form-control:focus{border-color:#10b981;}
+/* ── Fault codes ── */
+.fc-tbl{width:100%;border-collapse:collapse;font-size:.82rem;}
+.fc-tbl th{font-size:.7rem;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;padding:.45rem .7rem;text-align:left;border-bottom:1.5px solid #e2e8f0;white-space:nowrap;}
+.fc-tbl td{padding:.55rem .7rem;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
+.fc-tbl tr:last-child td{border-bottom:none;}
+.code-badge{display:inline-block;padding:.2rem .55rem;border-radius:99px;font-size:.74rem;font-weight:700;letter-spacing:.04em;}
+.rs-pending{background:#fef3c7;color:#92400e;}
+.rs-resolved{background:#d1fae5;color:#065f46;}
+.rs-partial{background:#e0e7ff;color:#3730a3;}
+.rs-deferred{background:#f3f4f6;color:#374151;}
+.rs-not_covered{background:#fee2e2;color:#991b1b;}
+/* ── Signatures ── */
+.sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;padding:1.25rem;}
+.sig-box{border:1.5px dashed #cbd5e1;border-radius:.6rem;padding:1rem;display:flex;flex-direction:column;align-items:center;gap:.6rem;min-height:160px;background:#fafafa;}
+.sig-box canvas{border:1px solid #e2e8f0;border-radius:.4rem;background:#fff;touch-action:none;cursor:crosshair;}
+.sig-box img{border-radius:.4rem;border:1px solid #e2e8f0;max-width:100%;}
+.sig-label{font-size:.78rem;font-weight:600;color:#374151;text-align:center;}
+.sig-note{font-size:.72rem;color:#94a3b8;text-align:center;}
 </style>
 
 @php
@@ -45,13 +64,16 @@ $isInProgress = in_array($repair->status, ['sent','diagnosing','repairing','wait
 
 {{-- En-tête --}}
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:.75rem;">
-    <div style="display:flex;align-items:center;gap:.75rem;">
+    <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;">
         <span class="badge" style="background:{{ $rBg }};color:{{ $rFg }};">{{ $rStatusLabels[$repair->status] ?? $repair->status }}</span>
+        @if($repair->di_number)
+            <span class="badge" style="background:#f0f9ff;color:#0369a1;font-family:monospace;font-size:.78rem;">{{ $repair->di_number }}</span>
+        @endif
         @if($repair->same_issue_recurrence)
             <span class="badge" style="background:#fee2e2;color:#991b1b;">⚠ Récurrence de panne</span>
         @endif
         @if($repair->is_overdue)
-            <span class="badge" style="background:#fef3c7;color:#92400e;">En retard</span>
+            <span class="badge" style="background:#fef3c7;color:#92400e;">⏰ En retard</span>
         @endif
     </div>
     <div style="display:flex;gap:.6rem;flex-wrap:wrap;">
@@ -59,12 +81,28 @@ $isInProgress = in_array($repair->status, ['sent','diagnosing','repairing','wait
         @if($repair->incident)
             <a href="{{ route('incidents.show', $repair->incident) }}" class="btn btn-ghost">Sinistre #{{ $repair->incident_id }}</a>
         @endif
+        @can('repairs.edit')
+            <a href="{{ route('repairs.edit', $repair) }}" class="btn btn-ghost">✏️ Modifier</a>
+        @endcan
+        <a href="{{ route('repairs.di-pdf', $repair) }}" class="btn btn-primary" target="_blank"
+           style="padding:.55rem 1.25rem;font-weight:700;letter-spacing:.01em;">
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="1.8"/>
+                <polyline points="14,2 14,8 20,8" stroke="currentColor" stroke-width="1.8"/>
+                <line x1="16" y1="13" x2="8" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                <line x1="16" y1="17" x2="8" y2="17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            Télécharger la fiche DI (PDF)
+        </a>
     </div>
 </div>
 
 @if($repair->is_overdue)
 <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:.6rem;padding:.9rem 1.1rem;margin-bottom:1.25rem;color:#92400e;font-size:.875rem;">
-    ⚠ Cette réparation est en cours depuis <strong>{{ $repair->duration_days }} jour(s)</strong> — au-delà du seuil de {{ config('fleet.repair_overdue_days', 7) }} jours.
+    ⏰ Date de disponibilité dépassée : le véhicule était attendu le
+    <strong>{{ $repair->availability_date_requested?->format('d/m/Y') }}</strong>
+    et n'est pas encore sorti
+    ({{ $repair->immobilization_days }} jour(s) d'immobilisation).
 </div>
 @endif
 
@@ -142,6 +180,112 @@ $isInProgress = in_array($repair->status, ['sent','diagnosing','repairing','wait
             </div>
         </div>
         @endif
+
+        {{-- ── Inventaire des dysfonctionnements ─────────────────────────── --}}
+        @if($repair->faultCodes->isNotEmpty() || $repair->di_number)
+        <div class="card">
+            <div class="card-head">
+                <span class="card-title">Inventaire des dysfonctionnements</span>
+                @if($repair->faultCodes->isNotEmpty())
+                <span style="font-size:.75rem;color:#94a3b8;">{{ $repair->faultCodes->count() }} code(s) ·
+                    {{ $repair->resolvedFaults->count() }} résolu(s) ·
+                    {{ $repair->pendingFaults->count() }} en attente
+                </span>
+                @endif
+            </div>
+            @if($repair->faultCodes->isEmpty())
+                <div style="padding:1.25rem;text-align:center;color:#94a3b8;font-size:.83rem;">Aucun code de panne enregistré.</div>
+            @else
+            <div style="overflow-x:auto;">
+                <table class="fc-tbl">
+                    <thead>
+                        <tr>
+                            <th>Code</th>
+                            <th>Catégorie</th>
+                            <th>Libellé</th>
+                            <th>Diagnostic garage</th>
+                            <th>Travaux réalisés</th>
+                            <th>Statut</th>
+                            <th>Coût</th>
+                            @can('repairs.edit') <th></th> @endcan
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($repair->faultCodes as $fc)
+                        @php
+                        $rsClass = 'rs-' . $fc->resolution_status;
+                        $catColor = ['anomaly'=>'#eff6ff:#1e40af','breakdown'=>'#fff7ed:#9a3412','wear'=>'#f0fdf4:#166534','accident'=>'#fef2f2:#991b1b','other'=>'#f8fafc:#374151'];
+                        [$catBg,$catFg] = explode(':', $catColor[$fc->category] ?? '#f8fafc:#374151');
+                        @endphp
+                        <tr>
+                            <td><span class="code-badge" style="background:#eff6ff;color:#1e40af;">{{ $fc->code }}</span></td>
+                            <td><span class="code-badge" style="background:{{ $catBg }};color:{{ $catFg }};">{{ $fc->category_label }}</span></td>
+                            <td style="max-width:200px;">{{ $fc->label }}</td>
+                            <td style="max-width:200px;color:#374151;font-size:.8rem;">{{ $fc->garage_diagnosis ?: '—' }}</td>
+                            <td style="max-width:200px;color:#374151;font-size:.8rem;">{{ $fc->work_performed ?: '—' }}</td>
+                            <td><span class="code-badge {{ $rsClass }}">{{ $fc->resolution_label }}</span></td>
+                            <td style="white-space:nowrap;">{{ $fc->fault_cost ? number_format($fc->fault_cost, 0, ',', ' ') . ' F' : '—' }}</td>
+                            @can('repairs.edit')
+                            <td>
+                                <button type="button" class="btn btn-ghost"
+                                        style="padding:.25rem .55rem;font-size:.72rem;"
+                                        onclick="openDiagModal({{ $fc->id }}, {{ json_encode($fc->garage_diagnosis) }}, {{ json_encode($fc->work_performed) }}, '{{ $fc->resolution_status }}', '{{ $fc->fault_cost }}')">
+                                    ✏️
+                                </button>
+                            </td>
+                            @endcan
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+            @endif
+        </div>
+        @endif
+
+        {{-- ── Signatures ─────────────────────────────────────────────────── --}}
+        <div class="card" id="signatures-card">
+            <div class="card-head">
+                <span class="card-title">Signatures</span>
+            </div>
+            <div class="sig-grid">
+                @php
+                $sigZones = [
+                    ['key'=>'company',      'label'=>'Signature Geomatos — Entrée'],
+                    ['key'=>'garage',       'label'=>'Signature Atelier — Entrée'],
+                    ['key'=>'company_exit', 'label'=>'Signature Geomatos — Sortie'],
+                    ['key'=>'garage_exit',  'label'=>'Signature Atelier — Sortie'],
+                ];
+                @endphp
+                @foreach($sigZones as $zone)
+                @php $field = 'signature_' . $zone['key'] . '_path'; $sigPath = $repair->$field; @endphp
+                <div class="sig-box" id="sigbox-{{ $zone['key'] }}">
+                    <div class="sig-label">{{ $zone['label'] }}</div>
+                    @if($sigPath)
+                        <img src="{{ asset('storage/' . $sigPath) }}" alt="Signature" style="max-height:100px;">
+                        @can('repairs.edit')
+                        <button type="button" class="btn btn-ghost" style="font-size:.75rem;padding:.3rem .7rem;"
+                                onclick="showSigCanvas('{{ $zone['key'] }}')">Modifier</button>
+                        @endcan
+                    @else
+                        @can('repairs.edit')
+                        <canvas id="canvas-{{ $zone['key'] }}" width="260" height="100"></canvas>
+                        <div style="display:flex;gap:.5rem;">
+                            <button type="button" class="btn btn-primary" style="font-size:.75rem;padding:.35rem .8rem;"
+                                    onclick="saveSig('{{ $zone['key'] }}', '{{ route('repairs.signature', $repair) }}')">
+                                Enregistrer
+                            </button>
+                            <button type="button" class="btn btn-ghost" style="font-size:.75rem;padding:.35rem .7rem;"
+                                    onclick="clearSig('{{ $zone['key'] }}')">Effacer</button>
+                        </div>
+                        @else
+                        <div class="sig-note">Non signé</div>
+                        @endcan
+                    @endif
+                </div>
+                @endforeach
+            </div>
+        </div>
 
         {{-- Retour --}}
         @if($repair->datetime_returned)
@@ -353,6 +497,64 @@ $isInProgress = in_array($repair->status, ['sent','diagnosing','repairing','wait
         </div>
         @endif
 
+        {{-- Suivi de l'immobilisation --}}
+        <div class="card">
+            <div class="card-head"><span class="card-title">Suivi de l'immobilisation</span></div>
+            <div style="padding:1.25rem;display:flex;flex-direction:column;gap:.75rem;font-size:.83rem;">
+                <div>
+                    <div style="font-size:.7rem;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;">Date d'entrée</div>
+                    <div style="margin-top:.2rem;color:#0f172a;">{{ $repair->datetime_sent?->format('d/m/Y à H:i') ?? '—' }}</div>
+                </div>
+                @if($repair->availability_date_requested)
+                <div>
+                    <div style="font-size:.7rem;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;">Disponibilité souhaitée</div>
+                    <div style="margin-top:.2rem;color:#0f172a;">{{ $repair->availability_date_requested->format('d/m/Y') }}</div>
+                </div>
+                @endif
+                <div>
+                    <div style="font-size:.7rem;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;">Date de sortie réelle</div>
+                    @can('repairs.edit')
+                    <form method="POST" action="{{ route('repairs.update', $repair) }}" style="margin-top:.3rem;display:flex;gap:.4rem;align-items:center;">
+                        @csrf @method('PUT')
+                        <input type="date" name="actual_exit_date" class="form-control"
+                               style="font-size:.8rem;padding:.3rem .55rem;"
+                               value="{{ $repair->actual_exit_date?->format('Y-m-d') }}">
+                        <button type="submit" class="btn btn-primary" style="padding:.3rem .6rem;font-size:.75rem;white-space:nowrap;">OK</button>
+                    </form>
+                    @else
+                    <div style="margin-top:.2rem;color:#0f172a;">{{ $repair->actual_exit_date?->format('d/m/Y') ?? '—' }}</div>
+                    @endcan
+                </div>
+                <div style="border-top:1px solid #f1f5f9;padding-top:.75rem;">
+                    <div style="font-size:.7rem;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;">Immobilisation</div>
+                    @php $imDays = $repair->immobilization_days; @endphp
+                    <div style="margin-top:.3rem;display:flex;align-items:center;gap:.5rem;">
+                        @if($imDays !== null)
+                            <span style="font-size:1.35rem;font-weight:800;color:{{ $repair->is_overdue ? '#dc2626' : '#0f172a' }};">{{ $imDays }}</span>
+                            <span style="color:#64748b;">jour(s)</span>
+                            @if($repair->is_overdue)
+                                <span style="font-size:.72rem;background:#fee2e2;color:#dc2626;padding:.15rem .5rem;border-radius:99px;font-weight:600;">Dépassé</span>
+                            @endif
+                        @else
+                            <span style="color:#94a3b8;">—</span>
+                        @endif
+                    </div>
+                </div>
+                @if($repair->or_initial_reference)
+                <div>
+                    <div style="font-size:.7rem;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;">Réf. OR initial</div>
+                    <div style="margin-top:.2rem;color:#0f172a;">{{ $repair->or_initial_reference }}</div>
+                </div>
+                @endif
+                @if($repair->vehicle_type_body)
+                <div>
+                    <div style="font-size:.7rem;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;">Type carrosserie</div>
+                    <div style="margin-top:.2rem;color:#0f172a;">{{ $repair->vehicle_type_body }}</div>
+                </div>
+                @endif
+            </div>
+        </div>
+
         {{-- Méta --}}
         <div class="card">
             <div class="card-head"><span class="card-title">Informations</span></div>
@@ -366,4 +568,149 @@ $isInProgress = in_array($repair->status, ['sent','diagnosing','repairing','wait
         </div>
     </div>
 </div>
+{{-- ── Modal diagnostic garage ──────────────────────────────────────────── --}}
+<div id="diag-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:.75rem;width:min(560px,95vw);max-height:90vh;overflow-y:auto;padding:1.5rem;position:relative;">
+        <button onclick="closeDiagModal()" style="position:absolute;top:.75rem;right:.75rem;background:none;border:none;font-size:1.2rem;cursor:pointer;color:#64748b;">×</button>
+        <h3 style="margin:0 0 1rem;font-size:1rem;color:#0f172a;">Diagnostic du garage</h3>
+        <input type="hidden" id="diag-fc-id">
+        <div style="display:flex;flex-direction:column;gap:.85rem;">
+            <div>
+                <label style="font-size:.8rem;font-weight:600;color:#374151;display:block;margin-bottom:.35rem;">Diagnostic garage</label>
+                <textarea id="diag-diagnosis" class="form-control" rows="3" placeholder="Ce que le garage a diagnostiqué…"></textarea>
+            </div>
+            <div>
+                <label style="font-size:.8rem;font-weight:600;color:#374151;display:block;margin-bottom:.35rem;">Travaux réalisés</label>
+                <textarea id="diag-work" class="form-control" rows="3" placeholder="Travaux effectués pour résoudre ce code…"></textarea>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;">
+                <div>
+                    <label style="font-size:.8rem;font-weight:600;color:#374151;display:block;margin-bottom:.35rem;">Statut de résolution</label>
+                    <select id="diag-status" class="form-control" style="font-size:.83rem;">
+                        <option value="pending">En attente</option>
+                        <option value="resolved">Résolu</option>
+                        <option value="partial">Partiellement résolu</option>
+                        <option value="deferred">Reporté</option>
+                        <option value="not_covered">Non pris en charge</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size:.8rem;font-weight:600;color:#374151;display:block;margin-bottom:.35rem;">Coût (FCFA)</label>
+                    <input type="number" id="diag-cost" class="form-control" min="0" step="100" placeholder="0">
+                </div>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:.6rem;">
+                <button type="button" class="btn btn-ghost" onclick="closeDiagModal()">Annuler</button>
+                <button type="button" class="btn btn-primary" onclick="submitDiag()">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @endsection
+
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+<script>
+// ── Gestion CSRF ──────────────────────────────────────────────────────────
+const CSRF = document.querySelector('meta[name=csrf-token]')?.content || '';
+
+// ── Signatures ────────────────────────────────────────────────────────────
+const sigPads = {};
+
+document.querySelectorAll('canvas[id^="canvas-"]').forEach(canvas => {
+    const key = canvas.id.replace('canvas-', '');
+    sigPads[key] = new SignaturePad(canvas, { penColor: '#1e293b' });
+});
+
+function clearSig(key) {
+    if (sigPads[key]) sigPads[key].clear();
+}
+
+function showSigCanvas(key) {
+    const box = document.getElementById('sigbox-' + key);
+    const img = box.querySelector('img');
+    if (img) img.style.display = 'none';
+
+    const canvas = document.createElement('canvas');
+    canvas.id = 'canvas-' + key;
+    canvas.width  = 260;
+    canvas.height = 100;
+    box.insertBefore(canvas, box.querySelector('button'));
+
+    sigPads[key] = new SignaturePad(canvas, { penColor: '#1e293b' });
+
+    const btns = document.createElement('div');
+    btns.style.cssText = 'display:flex;gap:.5rem;';
+    btns.innerHTML = `
+        <button type="button" class="btn btn-primary" style="font-size:.75rem;padding:.35rem .8rem;"
+                onclick="saveSig('${key}', '{{ route('repairs.signature', $repair) }}')">Enregistrer</button>
+        <button type="button" class="btn btn-ghost" style="font-size:.75rem;padding:.35rem .7rem;"
+                onclick="clearSig('${key}')">Effacer</button>`;
+    box.appendChild(btns);
+}
+
+async function saveSig(key, url) {
+    const pad = sigPads[key];
+    if (!pad || pad.isEmpty()) {
+        alert('Veuillez signer avant d\'enregistrer.');
+        return;
+    }
+    const dataUrl = pad.toDataURL('image/png');
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+        body: JSON.stringify({ signature_type: key, signature_data: dataUrl }),
+    });
+    if (res.ok) {
+        const data = await res.json();
+        const box  = document.getElementById('sigbox-' + key);
+        box.innerHTML = `
+            <div class="sig-label">${box.querySelector('.sig-label')?.textContent || ''}</div>
+            <img src="${data.url}" alt="Signature" style="max-height:100px;border-radius:.4rem;border:1px solid #e2e8f0;">
+            <button type="button" class="btn btn-ghost" style="font-size:.75rem;padding:.3rem .7rem;"
+                    onclick="showSigCanvas('${key}')">Modifier</button>`;
+    } else {
+        alert('Erreur lors de l\'enregistrement de la signature.');
+    }
+}
+
+// ── Modal diagnostic ──────────────────────────────────────────────────────
+const diagModal = document.getElementById('diag-modal');
+
+function openDiagModal(id, diag, work, status, cost) {
+    document.getElementById('diag-fc-id').value     = id;
+    document.getElementById('diag-diagnosis').value = diag || '';
+    document.getElementById('diag-work').value      = work || '';
+    document.getElementById('diag-status').value    = status || 'pending';
+    document.getElementById('diag-cost').value      = cost  || '';
+    diagModal.style.display = 'flex';
+}
+
+function closeDiagModal() { diagModal.style.display = 'none'; }
+
+diagModal.addEventListener('click', e => { if (e.target === diagModal) closeDiagModal(); });
+
+async function submitDiag() {
+    const fcId = document.getElementById('diag-fc-id').value;
+    const url  = `/reparations/{{ $repair->id }}/fault-codes/${fcId}/diagnostic`;
+    const body = {
+        garage_diagnosis:  document.getElementById('diag-diagnosis').value,
+        work_performed:    document.getElementById('diag-work').value,
+        resolution_status: document.getElementById('diag-status').value,
+        fault_cost:        document.getElementById('diag-cost').value || null,
+    };
+    const res = await fetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    if (res.ok) {
+        closeDiagModal();
+        location.reload();
+    } else {
+        alert('Erreur lors de l\'enregistrement.');
+    }
+}
+</script>
+@endpush

@@ -20,7 +20,20 @@
 .btn-primary{background:linear-gradient(135deg,#10b981,#059669);color:#fff;}
 .btn-ghost{background:#f8fafc;color:#374151;border:1.5px solid #e2e8f0;}
 .btn-ghost:hover{background:#f1f5f9;}
+.btn-danger{background:#fef2f2;color:#dc2626;border:1.5px solid #fecaca;}
+.btn-danger:hover{background:#fee2e2;}
 .info-banner{background:#eff6ff;border:1px solid #bfdbfe;border-radius:.55rem;padding:.8rem 1rem;font-size:.83rem;color:#1e40af;margin-bottom:1.25rem;display:flex;gap:.5rem;align-items:flex-start;}
+/* ── Carrosserie pills ── */
+.body-pills{display:flex;flex-wrap:wrap;gap:.5rem;}
+.body-pills input[type=radio]{display:none;}
+.body-pills label{padding:.35rem .85rem;border-radius:99px;border:1.5px solid #e2e8f0;font-size:.8rem;font-weight:500;color:#374151;cursor:pointer;transition:all .15s;}
+.body-pills input[type=radio]:checked + label{background:#10b981;border-color:#10b981;color:#fff;}
+/* ── Fault codes table ── */
+.fc-table{width:100%;border-collapse:collapse;font-size:.83rem;}
+.fc-table th{font-size:.72rem;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;padding:.45rem .65rem;text-align:left;border-bottom:1.5px solid #e2e8f0;}
+.fc-table td{padding:.5rem .65rem;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
+.code-badge{display:inline-block;padding:.2rem .55rem;border-radius:99px;font-size:.75rem;font-weight:700;background:#eff6ff;color:#1e40af;letter-spacing:.04em;}
+[x-cloak]{display:none!important;}
 </style>
 
 <div class="info-banner">
@@ -78,14 +91,10 @@
                     <label class="form-label">Type de réparation <span class="req">*</span></label>
                     <select name="repair_type" class="form-control @error('repair_type') is-invalid @enderror" required>
                         <option value="">Sélectionner…</option>
-                        <option value="body_repair"  @selected(old('repair_type')==='body_repair')>Carrosserie</option>
-                        <option value="mechanical"   @selected(old('repair_type')==='mechanical')>Mécanique</option>
-                        <option value="electrical"   @selected(old('repair_type')==='electrical')>Électrique</option>
-                        <option value="tire"         @selected(old('repair_type')==='tire')>Pneus</option>
-                        <option value="painting"     @selected(old('repair_type')==='painting')>Peinture</option>
-                        <option value="glass"        @selected(old('repair_type')==='glass')>Vitrage</option>
-                        <option value="full_service" @selected(old('repair_type')==='full_service')>Révision complète</option>
-                        <option value="other"        @selected(old('repair_type')==='other')>Autre</option>
+                        <option value="corrective" @selected(old('repair_type')==='corrective')>Corrective (Retour Atelier)</option>
+                        <option value="preventive" @selected(old('repair_type')==='preventive')>Réglementaire (Révision)</option>
+                        <option value="warranty"   @selected(old('repair_type')==='warranty')>Sous Garantie</option>
+                        <option value="recall"     @selected(old('repair_type')==='recall')>Rappel Constructeur</option>
                     </select>
                     @error('repair_type') <span class="invalid-feedback">{{ $message }}</span> @enderror
                 </div>
@@ -145,6 +154,109 @@
         </div>
     </div>
 
+    {{-- ── Section Informations DI ──────────────────────────────────────── --}}
+    <div class="card">
+        <div class="card-head">
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" stroke="#10b981" stroke-width="1.8"/><path d="M7 8h10M7 12h10M7 16h6" stroke="#10b981" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <span class="card-title">Informations DI</span>
+            <span style="margin-left:auto;font-size:.75rem;color:#94a3b8;">Numéro généré automatiquement à la création</span>
+        </div>
+        <div style="padding:1.25rem;">
+            <div class="form-grid">
+                {{-- Type carrosserie --}}
+                <div class="form-group" style="grid-column:1/-1;">
+                    <label class="form-label">Type de carrosserie</label>
+                    <div class="body-pills">
+                        @foreach(['Berline','SUV','Pick-up','Utilitaire','Camion','Autre'] as $bt)
+                        <div>
+                            <input type="radio" name="vehicle_type_body" id="bt_{{ Str::slug($bt) }}" value="{{ $bt }}"
+                                   @checked(old('vehicle_type_body') === $bt)>
+                            <label for="bt_{{ Str::slug($bt) }}">{{ $bt }}</label>
+                        </div>
+                        @endforeach
+                    </div>
+                </div>
+
+                {{-- Référence OR initial --}}
+                <div class="form-group">
+                    <label class="form-label">Référence OR initial</label>
+                    <input type="text" name="or_initial_reference" class="form-control"
+                           value="{{ old('or_initial_reference') }}" placeholder="N/A si vide">
+                </div>
+
+                {{-- Date de disponibilité souhaitée --}}
+                <div class="form-group">
+                    <label class="form-label">Date de disponibilité souhaitée</label>
+                    <input type="date" name="availability_date_requested" class="form-control"
+                           value="{{ old('availability_date_requested') }}" min="{{ now()->toDateString() }}">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- ── Inventaire des dysfonctionnements ──────────────────────────────── --}}
+    <div class="card" x-data="faultCodesApp()" x-cloak>
+        <div class="card-head">
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01" stroke="#f59e0b" stroke-width="2" stroke-linecap="round"/><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="#f59e0b" stroke-width="1.8"/></svg>
+            <span class="card-title">Inventaire des dysfonctionnements</span>
+            <span style="margin-left:auto;font-size:.75rem;color:#94a3b8;" x-text="faultCodes.length + ' ligne(s)'"></span>
+        </div>
+        <div style="padding:1.25rem;">
+            {{-- Tableau --}}
+            <div style="overflow-x:auto;">
+                <table class="fc-table">
+                    <thead>
+                        <tr>
+                            <th style="width:70px;">Code</th>
+                            <th style="width:160px;">Catégorie</th>
+                            <th>Libellé de l'anomalie</th>
+                            <th style="width:44px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="(fc, idx) in faultCodes" :key="idx">
+                            <tr>
+                                <td>
+                                    <span class="code-badge" x-text="codePreview(idx)"></span>
+                                    <input type="hidden" :name="`fault_codes[${idx}][category]`" :value="fc.category">
+                                    <input type="hidden" :name="`fault_codes[${idx}][label]`"    :value="fc.label">
+                                </td>
+                                <td>
+                                    <select class="form-control" x-model="fc.category" style="font-size:.8rem;padding:.35rem .6rem;">
+                                        <option value="breakdown">Panne</option>
+                                        <option value="anomaly">Anomalie</option>
+                                        <option value="wear">Usure</option>
+                                        <option value="accident">Accident</option>
+                                        <option value="other">Autre</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <input type="text" class="form-control" x-model="fc.label"
+                                           placeholder="Ex : Climatisation inopérante" style="font-size:.83rem;">
+                                </td>
+                                <td style="text-align:center;">
+                                    <button type="button" class="btn btn-danger" style="padding:.3rem .5rem;font-size:.75rem;"
+                                            @click="removeCode(idx)" title="Supprimer">🗑</button>
+                                </td>
+                            </tr>
+                        </template>
+                        <tr x-show="faultCodes.length === 0">
+                            <td colspan="4" style="text-align:center;color:#94a3b8;font-size:.83rem;padding:1rem;">
+                                Aucun dysfonctionnement ajouté. Cliquez sur "+ Ajouter" pour commencer.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div style="margin-top:.85rem;">
+                <button type="button" class="btn btn-ghost" @click="addCode()">
+                    <svg width="13" height="13" fill="none" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    Ajouter une anomalie
+                </button>
+            </div>
+        </div>
+    </div>
+
     {{-- Photos --}}
     @include('partials._photo_upload', [
         'contextOptions' => ['repair_in_progress' => 'En cours de réparation', 'repair_after' => 'Après réparation'],
@@ -162,3 +274,28 @@
     </div>
 </form>
 @endsection
+
+@push('scripts')
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+<script>
+const FC_PREFIXES = { breakdown:'PN', anomaly:'AN', wear:'US', accident:'AC', other:'AU' };
+
+function faultCodesApp() {
+    return {
+        faultCodes: @json(old('fault_codes', [])),
+        addCode() {
+            this.faultCodes.push({ category: 'breakdown', label: '' });
+        },
+        removeCode(idx) {
+            this.faultCodes.splice(idx, 1);
+        },
+        codePreview(idx) {
+            const fc     = this.faultCodes[idx];
+            const prefix = FC_PREFIXES[fc.category] || 'AU';
+            const count  = this.faultCodes.slice(0, idx).filter(f => f.category === fc.category).length;
+            return prefix + String(count + 1).padStart(2, '0');
+        },
+    };
+}
+</script>
+@endpush

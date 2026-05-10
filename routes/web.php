@@ -1,8 +1,10 @@
 <?php
 
+use App\Http\Controllers\Admin\FuelController;
 use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\AssignmentController;
+use App\Http\Controllers\FuelRequestController;
 use App\Http\Controllers\CleaningController;
 use App\Http\Controllers\AlertController;
 use App\Http\Controllers\GarageController;
@@ -40,7 +42,9 @@ Route::middleware('guest')->group(function () {
     Route::post('/login', [LoginController::class, 'login'])->name('login.post');
 });
 
-Route::post('/logout', [LoginController::class, 'logout'])
+// POST : soumission normale du formulaire de déconnexion
+// GET  : accès direct à l'URL (lien, bookmark, redirection externe) — on déconnecte aussi
+Route::match(['GET', 'POST'], '/logout', [LoginController::class, 'logout'])
     ->middleware('auth')
     ->name('logout');
 
@@ -150,10 +154,18 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permission:repairs.create')->get('reparations/nouvelle', [RepairController::class, 'create'])->name('repairs.create');
     Route::middleware('permission:repairs.create')->post('reparations', [RepairController::class, 'store'])->name('repairs.store');
     Route::middleware('permission:repairs.view')->get('reparations/{repair}', [RepairController::class, 'show'])->name('repairs.show');
+    Route::middleware('permission:repairs.edit')->get('reparations/{repair}/modifier', [RepairController::class, 'edit'])->name('repairs.edit');
+    Route::middleware('permission:repairs.edit')->put('reparations/{repair}', [RepairController::class, 'update'])->name('repairs.update');
     Route::middleware('permission:repairs.edit')->post('reparations/{repair}/statut', [RepairController::class, 'updateStatus'])->name('repairs.update-status');
     Route::middleware('permission:repairs.edit')->post('reparations/{repair}/retour-garage', [RepairController::class, 'returnFromGarage'])->name('repairs.return-from-garage');
     Route::middleware('permission:repairs.edit')->delete('reparations/{repair}/photo', [RepairController::class, 'deletePhoto'])->name('repairs.delete-photo');
     Route::middleware('permission:repairs.delete')->delete('reparations/{repair}', [RepairController::class, 'destroy'])->name('repairs.destroy');
+    // ── DI — codes panne & signatures ──────────────────────────────────────
+    Route::middleware('permission:repairs.edit')->post('reparations/{repair}/fault-codes', [RepairController::class, 'addFaultCode'])->name('repairs.fault-codes.add');
+    Route::middleware('permission:repairs.edit')->delete('reparations/{repair}/fault-codes/{faultCode}', [RepairController::class, 'removeFaultCode'])->name('repairs.fault-codes.remove');
+    Route::middleware('permission:repairs.edit')->patch('reparations/{repair}/fault-codes/{faultCode}/diagnostic', [RepairController::class, 'updateFaultCodeDiagnosis'])->name('repairs.fault-codes.diagnosis');
+    Route::middleware('permission:repairs.view')->get('reparations/{repair}/di-pdf', [RepairController::class, 'generateDI'])->name('repairs.di-pdf');
+    Route::middleware('permission:repairs.edit')->post('reparations/{repair}/signature', [RepairController::class, 'updateSignature'])->name('repairs.signature');
 
     // ── Garages ────────────────────────────────────────────────────────────
     Route::middleware('permission:garages.view')->get('garages', [GarageController::class, 'index'])->name('garages.index');
@@ -201,6 +213,37 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permission:cleanings.edit')->post('nettoyages/{cleaning}/annuler', [CleaningController::class, 'cancel'])->name('cleanings.cancel');
     Route::middleware('permission:cleanings.delete')->delete('nettoyages/{cleaning}', [CleaningController::class, 'destroy'])->name('cleanings.destroy');
     Route::middleware('permission:cleanings.delete')->post('nettoyages/{id}/restaurer', [CleaningController::class, 'restore'])->name('cleanings.restore');
+
+    // ── Carburant — espace collaborateur / chauffeur ───────────────────────
+    Route::middleware('permission:fuel.view')->get('carburant/demandes', [FuelRequestController::class, 'index'])->name('fuel.requests.index');
+    Route::middleware('permission:fuel.request')->get('carburant/demandes/nouvelle', [FuelRequestController::class, 'create'])->name('fuel.requests.create');
+    Route::middleware('permission:fuel.request')->post('carburant/demandes', [FuelRequestController::class, 'store'])->name('fuel.requests.store');
+    Route::middleware('permission:fuel.view')->get('carburant/demandes/{fuelRequest}', [FuelRequestController::class, 'show'])->name('fuel.requests.show');
+    Route::middleware('permission:fuel.view')->post('carburant/demandes/{fuelRequest}/annuler', [FuelRequestController::class, 'cancel'])->name('fuel.requests.cancel');
+
+    // ── Carburant — espace admin / gestionnaire ────────────────────────────
+    Route::middleware('permission:fuel.view')->group(function () {
+        // Tableau de bord
+        Route::get('carburant', [FuelController::class, 'dashboard'])->name('fuel.admin.dashboard');
+        // Toutes les demandes
+        Route::get('carburant/gestion/demandes', [FuelController::class, 'requests'])->name('fuel.admin.requests');
+        Route::get('carburant/gestion/demandes/{fuelRequest}', [FuelController::class, 'showRequest'])->name('fuel.admin.request-show');
+        // Transactions
+        Route::get('carburant/gestion/transactions', [FuelController::class, 'transactions'])->name('fuel.admin.transactions');
+    });
+    Route::middleware('permission:fuel.approve')->post('carburant/gestion/demandes/{fuelRequest}/approuver', [FuelController::class, 'approveRequest'])->name('fuel.admin.request-approve');
+    Route::middleware('permission:fuel.approve')->post('carburant/gestion/demandes/{fuelRequest}/rejeter', [FuelController::class, 'rejectRequest'])->name('fuel.admin.request-reject');
+    Route::middleware('permission:fuel.record')->get('carburant/gestion/transactions/nouvelle', [FuelController::class, 'createTransaction'])->name('fuel.admin.transaction-create');
+    Route::middleware('permission:fuel.record')->post('carburant/gestion/transactions', [FuelController::class, 'storeTransaction'])->name('fuel.admin.transaction-store');
+    // Stations
+    Route::middleware('permission:fuel.manage_stations')->group(function () {
+        Route::get('carburant/gestion/stations', [FuelController::class, 'stations'])->name('fuel.admin.stations');
+        Route::get('carburant/gestion/stations/nouvelle', [FuelController::class, 'createStation'])->name('fuel.admin.station-create');
+        Route::post('carburant/gestion/stations', [FuelController::class, 'storeStation'])->name('fuel.admin.station-store');
+        Route::get('carburant/gestion/stations/{fuelStation}/modifier', [FuelController::class, 'editStation'])->name('fuel.admin.station-edit');
+        Route::put('carburant/gestion/stations/{fuelStation}', [FuelController::class, 'updateStation'])->name('fuel.admin.station-update');
+        Route::delete('carburant/gestion/stations/{fuelStation}', [FuelController::class, 'destroyStation'])->name('fuel.admin.station-destroy');
+    });
 
     // ── Notifications in-app ──────────────────────────────────────────────
     Route::post('notifications/mark-all-read', [NotificationController::class, 'markAllRead'])->name('notifications.mark-all-read');

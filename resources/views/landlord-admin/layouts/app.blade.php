@@ -6,6 +6,22 @@
     <title>@yield('title', 'Admin') — MiensaFleet</title>
     <meta name="csrf-token" content="{{ csrf_token() }}">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        /* SweetAlert2 dark overrides */
+        .swal2-popup { background: #1e293b !important; color: #e2e8f0 !important; border: 1px solid rgba(255,255,255,.1) !important; }
+        .swal2-title { color: #f1f5f9 !important; }
+        .swal2-html-container { color: #94a3b8 !important; }
+        .swal2-input, .swal2-textarea {
+            background: #0f172a !important; color: #f1f5f9 !important;
+            border: 1px solid rgba(255,255,255,.15) !important;
+            font-family: inherit !important;
+        }
+        .swal2-input:focus, .swal2-textarea:focus { border-color: #3b82f6 !important; box-shadow: none !important; }
+        .swal2-actions { gap: .5rem; }
+        .swal2-cancel { background: #334155 !important; }
+        .swal2-validation-message { background: rgba(239,68,68,.1) !important; color: #fca5a5 !important; border: none !important; }
+    </style>
     <style>
         * { box-sizing: border-box; }
         body { margin: 0; font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; background: #0f172a; color: #e2e8f0; }
@@ -144,16 +160,36 @@
                 <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
                 Tenants
             </a>
+
+            <div class="admin-nav-label" style="margin-top:.5rem;">Page d'accueil</div>
+            <a href="{{ route('admin.plans.index') }}" class="{{ request()->routeIs('admin.plans.*') ? 'active' : '' }}">
+                <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                Plans & Tarifs
+            </a>
+            <a href="{{ route('admin.promotions.index') }}" class="{{ request()->routeIs('admin.promotions.*') ? 'active' : '' }}">
+                <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                Promotions
+            </a>
+
+            <div class="admin-nav-label" style="margin-top:.5rem;">Configuration</div>
+            <a href="{{ route('admin.settings.index') }}" class="{{ request()->routeIs('admin.settings.*') ? 'active' : '' }}">
+                <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                Paramètres du site
+            </a>
         </nav>
 
         <div class="admin-user">
-            <div class="admin-user-avatar">
-                {{ strtoupper(substr(Auth::guard('landlord')->user()?->name ?? 'A', 0, 1)) }}
-            </div>
-            <div class="admin-user-info">
-                <div class="admin-user-name">{{ Auth::guard('landlord')->user()?->name }}</div>
-                <div class="admin-user-role">Super Admin</div>
-            </div>
+            <a href="{{ route('admin.profile') }}" style="display:flex;align-items:center;gap:.65rem;flex:1;min-width:0;text-decoration:none;" title="Mon profil">
+                <div class="admin-user-avatar">
+                    {{ strtoupper(substr(Auth::guard('landlord')->user()?->name ?? 'A', 0, 1)) }}
+                </div>
+                <div class="admin-user-info">
+                    <div class="admin-user-name">{{ Auth::guard('landlord')->user()?->name }}</div>
+                    <div class="admin-user-role" style="{{ request()->routeIs('admin.profile') ? 'color:#93c5fd;' : '' }}">
+                        {{ request()->routeIs('admin.profile') ? '● Mon profil' : 'Super Admin' }}
+                    </div>
+                </div>
+            </a>
             <form method="POST" action="{{ route('admin.logout') }}">
                 @csrf
                 <button type="submit" class="admin-logout" title="Déconnexion" style="background:none;border:none;cursor:pointer;padding:.25rem;">

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Landlord;
 
 use App\Http\Controllers\Controller;
 use App\Models\Plan;
+use App\Models\Promotion;
 use Illuminate\View\View;
 
 class PricingController extends Controller
@@ -14,7 +15,10 @@ class PricingController extends Controller
             ->orderBy('sort_order')
             ->get();
 
-        return view('landlord.pricing', compact('plans'));
+        // Promotions actuellement en cours (actives + dans la période)
+        $promotions = Promotion::active()->with('plan')->get();
+
+        return view('landlord.pricing', compact('plans', 'promotions'));
     }
 
     public function contact(): View

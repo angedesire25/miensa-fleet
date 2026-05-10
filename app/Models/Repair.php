@@ -21,6 +21,18 @@ class Repair extends Model
         'vehicle_id',
         'garage_id',
         'repair_type',
+        // ── Champs DI ──────────────────────────────────────────
+        'di_number',
+        'or_initial_reference',
+        'vehicle_type_body',
+        'availability_date_requested',
+        'actual_exit_date',
+        // immobilization_days : colonne virtuelle MySQL, non fillable
+        'signature_company_path',
+        'signature_garage_path',
+        'signature_company_exit_path',
+        'signature_garage_exit_path',
+        // ── Champs existants ────────────────────────────────────
         'datetime_sent',
         'km_at_departure',
         'condition_at_departure',
@@ -52,23 +64,27 @@ class Repair extends Model
     protected function casts(): array
     {
         return [
-            'datetime_sent'       => 'datetime',
-            'datetime_returned'   => 'datetime',
-            'parts_to_replace'    => 'array',
-            'parts_replaced'      => 'array',
-            'same_issue_recurrence' => 'boolean',
-            'quote_amount'        => 'decimal:2',
-            'invoice_amount'      => 'decimal:2',
-            'warranty_expiry'     => 'date',
-            'payment_date'        => 'date',
-            'km_at_departure'     => 'integer',
-            'km_at_return'        => 'integer',
-            'recurrence_delay_days' => 'integer',
-            'warranty_months'     => 'integer',
+            'datetime_sent'              => 'datetime',
+            'datetime_returned'          => 'datetime',
+            'parts_to_replace'           => 'array',
+            'parts_replaced'             => 'array',
+            'same_issue_recurrence'      => 'boolean',
+            'quote_amount'               => 'decimal:2',
+            'invoice_amount'             => 'decimal:2',
+            'warranty_expiry'            => 'date',
+            'payment_date'               => 'date',
+            'km_at_departure'            => 'integer',
+            'km_at_return'               => 'integer',
+            'recurrence_delay_days'      => 'integer',
+            'warranty_months'            => 'integer',
+            // ── Champs DI ─────────────────────────────────────────
+            'availability_date_requested' => 'date',
+            'actual_exit_date'            => 'date',
+            // immobilization_days → accesseur PHP (voir ci-dessous)
         ];
     }
 
-    protected $appends = ['duration_days', 'is_overdue'];
+    protected $appends = ['duration_days', 'is_overdue', 'immobilization_days', 'di_number_formatted'];
 
     // ── Spatie Activitylog ──────────────────────────────────────────────────
 
@@ -137,10 +153,32 @@ class Repair extends Model
         return $this->hasMany(Repair::class, 'previous_repair_id');
     }
 
+    /** Codes de panne résolus */
+    public function resolvedFaults(): HasMany
+    {
+        return $this->hasMany(RepairFaultCode::class)->where('resolution_status', 'resolved');
+    }
+
+    /** Codes de panne en attente */
+    public function pendingFaults(): HasMany
+    {
+        return $this->hasMany(RepairFaultCode::class)->where('resolution_status', 'pending');
+    }
+
     /** Pièces remplacées lors de cette réparation (version structurée) */
     public function partsReplaced(): HasMany
     {
         return $this->hasMany(PartReplacement::class);
+    }
+
+    /**
+     * Anomalies / codes de panne déclarés sur la DI.
+     * Remplace le champ texte libre parts_to_replace pour les DI Geomatos.
+     * Triés par sort_order puis par code.
+     */
+    public function faultCodes(): HasMany
+    {
+        return $this->hasMany(RepairFaultCode::class)->orderBy('sort_order')->orderBy('code');
     }
 
     /** Utilisateur qui a créé le bon de réparation */
@@ -157,6 +195,48 @@ class Repair extends Model
     {
         return $this->hasMany(VehiclePhoto::class, 'photoable_id')
                     ->where('photoable_type', self::class);
+    }
+
+    // ── Boot ───────────────────────────────────────────────────────────────
+
+    protected static function boot(): void
+    {
+        parent::boot();
+
+        static::creating(function (self $repair) {
+            if (empty($repair->di_number)) {
+                $repair->di_number = static::generateDiNumber($repair->vehicle_id);
+            }
+        });
+    }
+
+    // ── Génération du numéro DI ───────────────────────────────────────────
+
+    /**
+     * Génère le prochain numéro DI pour un véhicule sur le mois courant.
+     *
+     * Format : DI_{IMMAT_SANS_TIRETS}{MM}{YYYY}_{séquence 3 chiffres}
+     * Exemples : DI_1548JB012026_000, DI_1548JB012026_001
+     *
+     * La séquence est propre à chaque couple (vehicle × mois) et commence à 000.
+     */
+    public static function generateDiNumber(int $vehicleId): string
+    {
+        $plate      = \App\Models\Vehicle::where('id', $vehicleId)->value('plate') ?? 'VH';
+        $plateClean = strtoupper(preg_replace('/[^A-Z0-9]/i', '', $plate));
+
+        $mm   = now()->format('m');
+        $yyyy = now()->format('Y');
+
+        $prefix = "DI_{$plateClean}{$mm}{$yyyy}";
+
+        $count = static::withTrashed()
+            ->where('vehicle_id', $vehicleId)
+            ->whereYear('created_at', now()->year)
+            ->whereMonth('created_at', now()->month)
+            ->count();
+
+        return $prefix . '_' . str_pad($count, 3, '0', STR_PAD_LEFT);
     }
 
     // ── Scopes ─────────────────────────────────────────────────────────────
@@ -208,21 +288,51 @@ class Repair extends Model
     }
 
     /**
-     * Vrai si la réparation est en cours depuis plus de N jours (défaut : 7).
-     * Seuil configurable via config('fleet.repair_overdue_days').
+     * Vrai si la date de disponibilité demandée est dépassée et que le véhicule
+     * n'est pas encore sorti (actual_exit_date IS NULL).
      */
     protected function isOverdue(): Attribute
     {
         return Attribute::make(
             get: function () {
-                if (! in_array($this->status, ['sent', 'diagnosing', 'repairing', 'waiting_parts'], true)) {
-                    return false;
+                return $this->availability_date_requested !== null
+                    && $this->availability_date_requested->lt(now()->startOfDay())
+                    && $this->actual_exit_date === null;
+            },
+        );
+    }
+
+    /** Numéro DI formaté pour l'affichage (ex : DI_042026_001) */
+    protected function diNumberFormatted(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => $this->di_number ?? '—',
+        );
+    }
+
+    /**
+     * Durée d'immobilisation en jours entiers (équivalent de la formule
+     * virtualAs demandée, recalculée en PHP car MySQL interdit CURDATE()
+     * dans les colonnes générées).
+     *
+     *   - véhicule sorti  : actual_exit_date  − DATE(datetime_sent)
+     *   - encore au garage : today()           − DATE(datetime_sent)
+     *   - pas encore envoyé : null
+     */
+    protected function immobilizationDays(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                if ($this->datetime_sent === null) {
+                    return null;
                 }
 
-                $maxDays = (int) config('fleet.repair_overdue_days', 7);
+                $start = $this->datetime_sent->startOfDay();
+                $end   = $this->actual_exit_date
+                    ? $this->actual_exit_date->startOfDay()
+                    : now()->startOfDay();
 
-                return $this->datetime_sent !== null
-                    && $this->datetime_sent->lt(now()->subDays($maxDays));
+                return (int) $start->diffInDays($end);
             },
         );
     }

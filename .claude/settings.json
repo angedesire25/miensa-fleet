@@ -63,7 +63,11 @@
       "Bash(cmd.exe /c \"type C:\\\\laragon\\\\etc\\\\apache2\\\\sites-enabled\\\\auto.miensa-fleet.test.conf\")",
       "Bash(cmd.exe /c \"type C:\\\\Windows\\\\System32\\\\drivers\\\\etc\\\\hosts | findstr miensa\")",
       "Bash(cmd.exe /c \"type C:\\\\Windows\\\\System32\\\\drivers\\\\etc\\\\hosts\")",
-      "Bash(ls c:/laragon/www/miensa-fleet/database/migrations/*.php)"
+      "Bash(ls c:/laragon/www/miensa-fleet/database/migrations/*.php)",
+      "Bash(grep -n \"FuelRequest\\\\|use App\\\\\\\\\\\\\\\\\" \"c:/laragon/www/miensa-fleet/resources/views/layouts/dashboard.blade.php\")",
+      "Bash(php -l app/Http/Controllers/Admin/FuelController.php)",
+      "Bash(php -l app/Http/Controllers/FuelRequestController.php)",
+      "Bash(find /c/laragon/www/miensa-fleet/app/Http/Controllers/LandlordAdmin -type f -exec basename {} \\\\;)"
     ],
     "additionalDirectories": [
       "c:\\laragon\\www\\miensa-fleet\\resources\\views",

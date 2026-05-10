@@ -5,11 +5,14 @@ namespace App\Http\Controllers\LandlordAdmin;
 use App\Http\Controllers\Controller;
 use App\Models\Plan;
 use App\Models\Tenant;
+use App\Notifications\TenantAccessResetNotification;
+use App\Notifications\TenantSuspendedNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -150,10 +153,40 @@ class TenantAdminController extends Controller
             ->with('tenant_password', $password);
     }
 
-    public function suspend(Tenant $tenant): RedirectResponse
+    public function suspend(Request $request, Tenant $tenant): RedirectResponse
     {
-        $tenant->update(['status' => 'suspended', 'suspended_at' => now()]);
-        return back()->with('success', "Tenant « {$tenant->name} » suspendu.");
+        $request->validate([
+            'reason' => 'required|string|max:500',
+        ], [
+            'reason.required' => 'Le motif de suspension est obligatoire.',
+        ]);
+
+        $tenant->update([
+            'status'           => 'suspended',
+            'suspended_at'     => now(),
+            'suspension_reason'=> $request->reason,
+        ]);
+
+        // Notifier l'administrateur du tenant via son email de contact (landlord DB)
+        try {
+            $tenant->makeCurrent();
+
+            $superAdmin = \App\Models\User::whereHas(
+                'roles', fn ($q) => $q->where('name', 'super_admin')
+            )->first();
+
+            if ($superAdmin) {
+                $superAdmin->notify(new TenantSuspendedNotification($tenant, $request->reason));
+            }
+
+            Tenant::forgetCurrent();
+        } catch (\Throwable $e) {
+            Log::warning("Notification suspend failed for tenant {$tenant->slug}: " . $e->getMessage());
+            Tenant::forgetCurrent();
+        }
+
+        return redirect()->route('admin.tenants.show', $tenant)
+            ->with('success', "« {$tenant->name} » suspendu. Leurs utilisateurs ne peuvent plus se connecter.");
     }
 
     public function activate(Tenant $tenant): RedirectResponse
@@ -161,18 +194,55 @@ class TenantAdminController extends Controller
         $wasTrial = $tenant->status === 'trial';
 
         $tenant->update([
-            'status'        => 'active',
-            'suspended_at'  => null,
-            'trial_ends_at' => null,
-            // Marque la date de début d'abonnement payant si c'était un trial
-            'subscribed_at' => $wasTrial ? now() : $tenant->subscribed_at,
+            'status'           => 'active',
+            'suspended_at'     => null,
+            'suspension_reason'=> null,
+            'trial_ends_at'    => null,
+            'subscribed_at'    => $wasTrial ? now() : $tenant->subscribed_at,
         ]);
 
         $msg = $wasTrial
             ? "Abonnement de « {$tenant->name} » validé — trial converti en actif."
-            : "Tenant « {$tenant->name} » réactivé.";
+            : "« {$tenant->name} » réactivé avec succès.";
 
         return back()->with('success', $msg);
+    }
+
+    public function destroy(Request $request, Tenant $tenant): RedirectResponse
+    {
+        $request->validate([
+            'confirm_slug' => ['required', 'string', function ($attr, $value, $fail) use ($tenant) {
+                if ($value !== $tenant->slug) {
+                    $fail("Le sous-domaine saisi ne correspond pas. Suppression annulée.");
+                }
+            }],
+        ]);
+
+        $name     = $tenant->name;
+        $dbName   = $tenant->database;
+        $dropDb   = $request->boolean('drop_database');
+
+        // Soft-delete du tenant (status cancelled)
+        $tenant->update(['status' => 'cancelled']);
+        $tenant->delete();
+
+        // Suppression optionnelle de la base MySQL
+        if ($dropDb && $dbName) {
+            try {
+                DB::connection('landlord')->statement("DROP DATABASE IF EXISTS `{$dbName}`");
+            } catch (\Throwable $e) {
+                Log::error("Impossible de supprimer la base {$dbName} : " . $e->getMessage());
+                return redirect()->route('admin.tenants.index')
+                    ->with('success', "« {$name} » supprimé.")
+                    ->with('error', "La base de données n'a pas pu être supprimée : " . $e->getMessage());
+            }
+        }
+
+        $msg = $dropDb
+            ? "« {$name} » supprimé et base de données `{$dbName}` effacée définitivement."
+            : "« {$name} » supprimé. La base de données `{$dbName}` est conservée.";
+
+        return redirect()->route('admin.tenants.index')->with('success', $msg);
     }
 
     public function changePlan(Tenant $tenant, Request $request): RedirectResponse
@@ -190,6 +260,60 @@ class TenantAdminController extends Controller
         ]);
 
         return back()->with('success', "Plan mis à jour : {$plan->name}");
+    }
+
+    public function resetAccess(Tenant $tenant): RedirectResponse
+    {
+        $originalDefault = DB::getDefaultConnection();
+
+        // Basculer sur la BDD du tenant
+        config(['database.connections.tenant.database' => $tenant->database]);
+        DB::purge('tenant');
+        DB::reconnect('tenant');
+        DB::setDefaultConnection('tenant');
+
+        try {
+            // Trouver le compte admin principal (super_admin en priorité, sinon admin)
+            $adminUser = \App\Models\User::whereHas('roles', fn ($q) => $q->where('name', 'super_admin'))->first()
+                      ?? \App\Models\User::whereHas('roles', fn ($q) => $q->where('name', 'admin'))->first();
+
+            if (! $adminUser) {
+                DB::setDefaultConnection($originalDefault);
+                DB::purge('tenant');
+                return back()->with('error', "Aucun compte admin trouvé dans la base de {$tenant->name}.");
+            }
+
+            $newPassword = Str::password(12, symbols: false);
+
+            $adminUser->update([
+                'password'            => Hash::make($newPassword),
+                'password_changed_at' => null, // Force le changement à la prochaine connexion
+            ]);
+
+            // Notifier l'utilisateur par email (tentative silencieuse)
+            try {
+                $adminUser->notify(new TenantAccessResetNotification($tenant, $newPassword));
+            } catch (\Throwable $e) {
+                Log::warning("Notification reset access failed for tenant {$tenant->slug}: " . $e->getMessage());
+            }
+
+            DB::setDefaultConnection($originalDefault);
+            DB::purge('tenant');
+
+            return back()
+                ->with('access_reset', [
+                    'email'    => $adminUser->email,
+                    'password' => $newPassword,
+                    'tenant'   => $tenant->name,
+                    'domain'   => $tenant->domain,
+                ]);
+
+        } catch (\Throwable $e) {
+            DB::setDefaultConnection($originalDefault);
+            DB::purge('tenant');
+
+            return back()->with('error', "Erreur lors de la réinitialisation : " . $e->getMessage());
+        }
     }
 
     public function impersonate(Tenant $tenant): RedirectResponse

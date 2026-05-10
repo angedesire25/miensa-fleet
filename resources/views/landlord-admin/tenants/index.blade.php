@@ -64,18 +64,35 @@
                             <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                         </a>
                         @if(in_array($tenant->status, ['suspended', 'trial']))
-                            <form method="POST" action="{{ route('admin.tenants.activate', $tenant) }}">
+                            <form id="activate-form-{{ $tenant->id }}" method="POST" action="{{ route('admin.tenants.activate', $tenant) }}">
                                 @csrf
-                                <button type="submit" class="btn-sm btn-green" title="{{ $tenant->status === 'trial' ? 'Valider l\'abonnement' : 'Réactiver' }}">
-                                    {{ $tenant->status === 'trial' ? 'Valider' : 'Activer' }}
-                                </button>
                             </form>
+                            <button type="button" class="btn-sm btn-green"
+                                    onclick="confirmActivate({{ $tenant->id }}, '{{ addslashes($tenant->name) }}', '{{ $tenant->status }}')">
+                                {{ $tenant->status === 'trial' ? 'Valider' : 'Activer' }}
+                            </button>
                         @endif
                         @if(!in_array($tenant->status, ['suspended', 'cancelled']))
-                            <form method="POST" action="{{ route('admin.tenants.suspend', $tenant) }}" onsubmit="return confirm('Suspendre {{ addslashes($tenant->name) }} ?')">
+                            <form id="suspend-form-{{ $tenant->id }}" method="POST" action="{{ route('admin.tenants.suspend', $tenant) }}">
                                 @csrf
-                                <button type="submit" class="btn-sm btn-red">Suspendre</button>
+                                <input type="hidden" name="reason" id="suspend-reason-{{ $tenant->id }}">
                             </form>
+                            <button type="button" class="btn-sm btn-red"
+                                    onclick="confirmSuspend({{ $tenant->id }}, '{{ addslashes($tenant->name) }}')">
+                                Suspendre
+                            </button>
+                        @endif
+                        @if($tenant->status !== 'cancelled')
+                            <form id="delete-form-{{ $tenant->id }}" method="POST" action="{{ route('admin.tenants.destroy', $tenant) }}">
+                                @csrf
+                                @method('DELETE')
+                                <input type="hidden" name="confirm_slug" id="delete-slug-{{ $tenant->id }}">
+                                <input type="hidden" name="drop_database" id="delete-drop-{{ $tenant->id }}" value="0">
+                            </form>
+                            <button type="button" class="btn-sm" style="background:rgba(239,68,68,.1);color:#fca5a5;border:1px solid rgba(239,68,68,.2);"
+                                    onclick="confirmDelete({{ $tenant->id }}, '{{ addslashes($tenant->name) }}', '{{ $tenant->slug }}', '{{ $tenant->database }}')">
+                                <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                            </button>
                         @endif
                     </div>
                 </td>
@@ -93,3 +110,88 @@
 </div>
 @endif
 @endsection
+
+@push('scripts')
+<script>
+function confirmActivate(id, name, status) {
+    const label = status === 'trial' ? 'Valider l\'abonnement' : 'Réactiver';
+    const text  = status === 'trial'
+        ? `Le compte passera de trial à actif et <strong>${name}</strong> sera facturé.`
+        : `Le compte de <strong>${name}</strong> sera réactivé.`;
+    Swal.fire({
+        title: label + ' ?',
+        html: text,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#22c55e',
+        cancelButtonText: 'Annuler',
+        confirmButtonText: label,
+    }).then(r => { if (r.isConfirmed) document.getElementById('activate-form-' + id).submit(); });
+}
+
+function confirmSuspend(id, name) {
+    Swal.fire({
+        title: `Suspendre ${name} ?`,
+        html: `Les utilisateurs ne pourront plus se connecter. Saisissez le motif&nbsp;:`,
+        input: 'textarea',
+        inputPlaceholder: 'Motif de la suspension…',
+        inputAttributes: { maxlength: 500, rows: 3 },
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        cancelButtonText: 'Annuler',
+        confirmButtonText: 'Suspendre',
+        preConfirm: (val) => {
+            if (!val || !val.trim()) {
+                Swal.showValidationMessage('Le motif de suspension est obligatoire.');
+                return false;
+            }
+            return val.trim();
+        },
+    }).then(r => {
+        if (r.isConfirmed) {
+            document.getElementById('suspend-reason-' + id).value = r.value;
+            document.getElementById('suspend-form-' + id).submit();
+        }
+    });
+}
+
+function confirmDelete(id, name, slug, dbName) {
+    Swal.fire({
+        title: 'Supprimer définitivement ?',
+        html: `
+            <p style="color:#94a3b8;margin-bottom:1rem;">
+                Tapez <code style="background:#0f172a;padding:.15rem .4rem;border-radius:4px;color:#fde047;font-family:monospace;">${slug}</code>
+                pour confirmer la suppression de <strong style="color:#f1f5f9;">${name}</strong>.
+            </p>
+            <input id="swal-slug-input" class="swal2-input" placeholder="${slug}" autocomplete="off">
+            <label style="display:flex;align-items:center;gap:.5rem;margin-top:1rem;cursor:pointer;font-size:.85rem;color:#fca5a5;">
+                <input type="checkbox" id="swal-drop-db" style="accent-color:#ef4444;">
+                Supprimer aussi la base de données <code style="font-size:.78rem;">${dbName}</code>
+            </label>
+            <p style="font-size:.75rem;color:#475569;margin-top:.5rem;">
+                ⚠ La suppression de la base est irréversible et efface toutes les données client.
+            </p>`,
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        cancelButtonText: 'Annuler',
+        confirmButtonText: 'Supprimer définitivement',
+        focusConfirm: false,
+        preConfirm: () => {
+            const typed = document.getElementById('swal-slug-input').value;
+            const drop  = document.getElementById('swal-drop-db').checked;
+            if (typed !== slug) {
+                Swal.showValidationMessage('Le sous-domaine saisi ne correspond pas.');
+                return false;
+            }
+            return { slug: typed, drop };
+        },
+    }).then(r => {
+        if (r.isConfirmed) {
+            document.getElementById('delete-slug-' + id).value = r.value.slug;
+            document.getElementById('delete-drop-' + id).value = r.value.drop ? '1' : '0';
+            document.getElementById('delete-form-' + id).submit();
+        }
+    });
+}
+</script>
+@endpush

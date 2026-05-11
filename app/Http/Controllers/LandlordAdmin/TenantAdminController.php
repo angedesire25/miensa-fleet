@@ -57,6 +57,12 @@ class TenantAdminController extends Controller
             'name'          => 'required|string|max:100',
             'slug'          => ['required', 'regex:/^[a-z0-9][a-z0-9-]*[a-z0-9]$/', 'max:30',
                                 'unique:landlord.tenants,slug'],
+            'database'      => ['required', 'string', 'max:64', 'regex:/^[a-zA-Z0-9_]+$/',
+                                'unique:landlord.tenants,database'],
+            'db_host'       => 'required|string|max:253',
+            'db_port'       => 'nullable|integer|between:1,65535',
+            'db_username'   => 'required|string|max:64',
+            'db_password'   => 'required|string|max:255',
             'contact_name'  => 'required|string|max:100',
             'contact_email' => 'required|email|max:150',
             'contact_phone' => 'nullable|string|max:30',
@@ -64,21 +70,51 @@ class TenantAdminController extends Controller
             'country'       => 'nullable|string|max:100',
             'timezone'      => 'nullable|string|max:60',
         ], [
-            'slug.regex' => 'Le sous-domaine ne doit contenir que des lettres minuscules, chiffres et tirets (pas en début/fin).',
-            'slug.unique' => 'Ce sous-domaine est déjà utilisé.',
+            'slug.regex'       => 'Le sous-domaine ne doit contenir que des lettres minuscules, chiffres et tirets (pas en début/fin).',
+            'slug.unique'      => 'Ce sous-domaine est déjà utilisé.',
+            'database.regex'   => 'Le nom de base ne doit contenir que des lettres, chiffres et underscores.',
+            'database.unique'  => 'Cette base de données est déjà associée à un autre client.',
+            'database.required'=> 'Le nom de la base de données est obligatoire.',
+            'db_host.required' => 'L\'hôte de la base de données est obligatoire.',
+            'db_username.required' => 'L\'identifiant de connexion est obligatoire.',
+            'db_password.required' => 'Le mot de passe de connexion est obligatoire.',
         ]);
 
         $plan   = Plan::on('landlord')->findOrFail($validated['plan_id']);
         $slug   = $validated['slug'];
-        $dbName = Tenant::databaseNameForSlug($slug);
+        $dbName = $validated['database'];
         $domain = $slug . '.' . config('multitenancy.landlord_domain');
 
-        // 1. Créer le tenant dans la base centrale
+        // 1. Tester la connexion AVANT de créer quoi que ce soit
+        config([
+            'database.connections.tenant.host'     => $validated['db_host'],
+            'database.connections.tenant.port'     => $validated['db_port'] ?? 3306,
+            'database.connections.tenant.database' => $dbName,
+            'database.connections.tenant.username' => $validated['db_username'],
+            'database.connections.tenant.password' => $validated['db_password'],
+        ]);
+        DB::purge('tenant');
+        try {
+            DB::connection('tenant')->getPdo();
+        } catch (\Exception $e) {
+            return back()->withInput()->with(
+                'error',
+                "Impossible de se connecter à la base « {$dbName} » sur « {$validated['db_host']} ». " .
+                "Vérifiez que la base existe et que les identifiants sont corrects. " .
+                "(Détail : " . $e->getMessage() . ")"
+            );
+        }
+
+        // 2. Créer le tenant dans la base centrale (connexion testée = OK)
         $tenant = Tenant::create([
             'name'          => $validated['name'],
             'slug'          => $slug,
             'domain'        => $domain,
             'database'      => $dbName,
+            'db_host'       => $validated['db_host'],
+            'db_port'       => $validated['db_port'] ?? 3306,
+            'db_username'   => $validated['db_username'],
+            'db_password'   => \Illuminate\Support\Facades\Crypt::encryptString($validated['db_password']),
             'plan_id'       => $plan->id,
             'status'        => $plan->trial_days > 0 ? 'trial' : 'active',
             'trial_ends_at' => $plan->trial_days > 0 ? now()->addDays($plan->trial_days) : null,
@@ -94,15 +130,7 @@ class TenantAdminController extends Controller
         $originalDefault = DB::getDefaultConnection();
 
         try {
-            // 2. Créer la base MySQL du tenant
-            DB::connection('landlord')->statement(
-                "CREATE DATABASE IF NOT EXISTS `{$dbName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
-            );
-
-            // 3. Pointer la connexion 'tenant' vers la nouvelle BDD
-            config(['database.connections.tenant.database' => $dbName]);
-            DB::purge('tenant');
-            DB::reconnect('tenant');
+            // 3. Pointer la connexion 'tenant' vers la BDD (déjà configurée et testée)
             DB::setDefaultConnection('tenant');
 
             // 4. Migrations tenant (database/migrations/ uniquement, pas le sous-dossier landlord/)
@@ -273,24 +301,25 @@ class TenantAdminController extends Controller
         DB::setDefaultConnection('tenant');
 
         try {
-            // Trouver le compte admin principal (super_admin en priorité, sinon admin)
-            $adminUser = \App\Models\User::whereHas('roles', fn ($q) => $q->where('name', 'super_admin'))->first()
-                      ?? \App\Models\User::whereHas('roles', fn ($q) => $q->where('name', 'admin'))->first();
+            // ── Étape 1 : migrations manquantes ──────────────────────────────
+            $this->runMissingMigrations();
 
-            if (! $adminUser) {
-                DB::setDefaultConnection($originalDefault);
-                DB::purge('tenant');
-                return back()->with('error', "Aucun compte admin trouvé dans la base de {$tenant->name}.");
-            }
+            // ── Étape 2 : rôles/permissions (idempotent) ─────────────────────
+            $this->ensureRolesAndPermissions();
 
+            // ── Étape 3 : trouver ou créer le compte admin ───────────────────
+            [$adminUser, $created] = $this->resolveAdminUser($tenant);
+
+            // ── Étape 4 : générer un nouveau mot de passe ────────────────────
             $newPassword = Str::password(12, symbols: false);
 
             $adminUser->update([
                 'password'            => Hash::make($newPassword),
-                'password_changed_at' => null, // Force le changement à la prochaine connexion
+                'password_changed_at' => null,
+                'status'              => 'active',
             ]);
 
-            // Notifier l'utilisateur par email (tentative silencieuse)
+            // ── Notification silencieuse ──────────────────────────────────────
             try {
                 $adminUser->notify(new TenantAccessResetNotification($tenant, $newPassword));
             } catch (\Throwable $e) {
@@ -300,20 +329,87 @@ class TenantAdminController extends Controller
             DB::setDefaultConnection($originalDefault);
             DB::purge('tenant');
 
-            return back()
-                ->with('access_reset', [
-                    'email'    => $adminUser->email,
-                    'password' => $newPassword,
-                    'tenant'   => $tenant->name,
-                    'domain'   => $tenant->domain,
-                ]);
+            $suffix = $created
+                ? " (nouveau compte super-admin créé — base était vide)"
+                : "";
+
+            return back()->with('access_reset', [
+                'email'    => $adminUser->email,
+                'password' => $newPassword,
+                'tenant'   => $tenant->name,
+                'domain'   => $tenant->domain,
+                'note'     => $suffix,
+            ]);
 
         } catch (\Throwable $e) {
             DB::setDefaultConnection($originalDefault);
             DB::purge('tenant');
 
+            Log::error("resetAccess failed for tenant {$tenant->slug}: " . $e->getMessage());
             return back()->with('error', "Erreur lors de la réinitialisation : " . $e->getMessage());
         }
+    }
+
+    // ── Helpers privés pour resetAccess ──────────────────────────────────────
+
+    private function runMissingMigrations(): void
+    {
+        $ran   = DB::table('migrations')->pluck('migration')->toArray();
+        $files = glob(base_path('database/migrations/*.php'));
+        $hasMissing = false;
+        foreach ($files as $f) {
+            if (! in_array(pathinfo($f, PATHINFO_FILENAME), $ran)) {
+                $hasMissing = true;
+                break;
+            }
+        }
+        if (! $hasMissing) return;
+
+        Artisan::call('migrate', [
+            '--database' => 'tenant',
+            '--path'     => 'database/migrations',
+            '--force'    => true,
+        ]);
+    }
+
+    private function ensureRolesAndPermissions(): void
+    {
+        // Toujours idempotent car le seeder utilise firstOrCreate
+        Artisan::call('db:seed', [
+            '--class' => 'RoleAndPermissionSeeder',
+            '--force' => true,
+        ]);
+        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+    }
+
+    /** @return array{0: \App\Models\User, 1: bool} [$user, $wasCreated] */
+    private function resolveAdminUser(Tenant $tenant): array
+    {
+        $user = \App\Models\User::whereHas('roles', fn ($q) => $q->where('name', 'super_admin'))->first()
+             ?? \App\Models\User::whereHas('roles', fn ($q) => $q->where('name', 'admin'))->first();
+
+        if ($user) {
+            return [$user, false];
+        }
+
+        // Base vide ou aucun admin — créer un super_admin à partir des infos du tenant
+        $email = $tenant->contact_email;
+
+        $user = \App\Models\User::firstOrCreate(
+            ['email' => $email],
+            [
+                'name'                => $tenant->contact_name ?? $tenant->name,
+                'password'            => Hash::make(Str::random(32)),
+                'email_verified_at'   => now(),
+                'password_changed_at' => null,
+                'status'              => 'active',
+            ]
+        );
+
+        $user->update(['status' => 'active']);
+        $user->syncRoles(['super_admin']);
+
+        return [$user, true];
     }
 
     public function impersonate(Tenant $tenant): RedirectResponse

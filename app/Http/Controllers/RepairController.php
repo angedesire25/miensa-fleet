@@ -312,7 +312,7 @@ class RepairController extends Controller
         $logoGuess = [
             public_path('images/logo.png'),
             public_path('images/logo.svg'),
-            storage_path('app/public/logo.png'),
+            public_path('uploads/logo.png'),
         ];
         foreach ($logoGuess as $path) {
             if (file_exists($path)) {

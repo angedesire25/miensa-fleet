@@ -16,7 +16,10 @@ use App\Http\Controllers\Dashboard\DashboardController;
 use App\Http\Controllers\DriverController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\RepairController;
+use App\Domain\WorkOrder\Actions\GenererFicheInterventionAction;
+use App\Models\Repair;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\VehicleController;
 use App\Http\Controllers\VehicleDocumentController;
@@ -33,6 +36,10 @@ use Illuminate\Support\Facades\Route;
 |   3. Retourne 404 si aucun tenant trouvé
 |--------------------------------------------------------------------------
 */
+// ── Pages statiques PWA (sans tenant ni auth) ──────────────────────────────────
+Route::get('/offline', fn () => view('offline'))->name('offline');
+Route::get('/install-app', fn () => view('pwa.install-guide'))->name('pwa.install');
+
 Route::middleware('needs.tenant')->group(function () {
 
 // ── Authentification ────────────────────────────────────────────────────────
@@ -278,6 +285,16 @@ Route::middleware('auth')->group(function () {
         Route::post('utilisateurs/{user}/reinitialiser-mdp', [UserController::class, 'resetPassword'])->name('users.reset-password');
         Route::delete('utilisateurs/{id}/supprimer-definitivement', [UserController::class, 'forceDestroy'])->name('users.force-destroy');
     });
+
+    // ── Fiche DI (Demande d'Intervention) ─────────────────────────────────────
+    Route::middleware('role:super_admin|admin|fleet_manager')
+        ->get('reparations/{repair}/fiche-intervention', function (Repair $repair, GenererFicheInterventionAction $action) {
+            return $action->handle($repair);
+        })->name('repairs.fiche-intervention');
+
+    // ── Push Notifications ────────────────────────────────────────────────────
+    Route::post('push/subscribe',   [PushSubscriptionController::class, 'subscribe'])->name('push.subscribe');
+    Route::post('push/unsubscribe', [PushSubscriptionController::class, 'unsubscribe'])->name('push.unsubscribe');
 
 }); // ── fin groupe auth ─────────────────────────────────────────────────────
 

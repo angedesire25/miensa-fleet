@@ -8,7 +8,8 @@
 .form-section-body{padding:1.1rem 1.25rem;}
 .form-group{margin-bottom:.85rem;}
 .form-label{font-size:.78rem;font-weight:600;color:#374151;margin-bottom:.3rem;display:block;}
-.form-input{width:100%;padding:.5rem .75rem;border:1.5px solid #e2e8f0;border-radius:.45rem;font-size:.83rem;background:#fff;color:#0f172a;outline:none;transition:border-color .15s;}
+.form-input{width:100%;padding:.5rem .75rem;border:1.5px solid #e2e8f0;border-radius:.45rem;font-size:1rem;background:#fff;color:#0f172a;outline:none;transition:border-color .15s;}
+@media (min-width:769px){.form-input{font-size:.83rem;}}
 .form-input:focus{border-color:#10b981;box-shadow:0 0 0 3px rgba(16,185,129,.08);}
 .form-input.is-invalid{border-color:#ef4444;}
 .invalid-msg{font-size:.73rem;color:#ef4444;margin-top:.2rem;}
@@ -155,6 +156,7 @@
             <label class="form-label">Kilométrage relevé</label>
             <div style="position:relative;">
                 <input type="number" name="km" class="form-input" placeholder="ex: 45 800" min="0"
+                       inputmode="numeric"
                        value="{{ old('km', $isEdit ? $inspection->km : '') }}"
                        style="padding-right:2.8rem;">
                 <span style="position:absolute;right:.75rem;top:50%;transform:translateY(-50%);font-size:.75rem;color:#94a3b8;pointer-events:none;">km</span>
@@ -261,6 +263,7 @@
             <div class="form-group" style="margin-bottom:0;">
                 <label class="form-label">Km à la dernière vidange</label>
                 <input type="number" name="oil_change_km" class="form-input" min="0" placeholder="Ex : 45000"
+                       inputmode="numeric"
                        value="{{ old('oil_change_km', $isEdit ? $inspection->oil_change_km : '') }}">
             </div>
 
@@ -277,6 +280,7 @@
             <div class="form-group" style="margin-bottom:0;">
                 <label class="form-label">Km seuil prochaine vidange</label>
                 <input type="number" name="oil_change_next_km" class="form-input" min="0" placeholder="Ex : 50000"
+                       inputmode="numeric"
                        value="{{ old('oil_change_next_km', $isEdit ? $inspection->oil_change_next_km : '') }}">
             </div>
 
@@ -458,6 +462,7 @@
                 </p>
                 <input type="file" id="photo-input" name="body_photos_upload[]"
                        accept="image/jpeg,image/png,image/webp"
+                       capture="environment"
                        multiple style="display:none;"
                        onchange="previewPhotos(this.files)">
             </div>

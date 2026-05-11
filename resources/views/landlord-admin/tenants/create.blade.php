@@ -34,6 +34,32 @@
     }
     .slug-preview strong { color:#3b82f6; }
 
+    .db-notice {
+        background: #1c1917;
+        border: 1px solid #f59e0b;
+        border-left: 4px solid #f59e0b;
+        border-radius: 8px;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.5rem;
+    }
+    .db-notice-title {
+        font-size: .85rem; font-weight: 700; color: #fbbf24;
+        margin: 0 0 .5rem; display: flex; align-items: center; gap: .4rem;
+    }
+    .db-notice-body {
+        font-size: .8rem; color: #d4a84b; line-height: 1.6;
+    }
+    .db-notice-body ol { margin: .4rem 0 0 1.1rem; padding: 0; }
+    .db-notice-body li { margin-bottom: .2rem; }
+    .db-value {
+        display: inline-block;
+        background: #292524; border: 1px solid #78350f;
+        border-radius: 5px; padding: .15rem .55rem;
+        font-family: monospace; font-size: .82rem; color: #fcd34d;
+        margin-top: .4rem;
+        word-break: break-all;
+    }
+
     .plan-cards { display:grid; grid-template-columns:repeat(3, 1fr); gap:1rem; margin-top:.5rem; }
     .plan-card {
         background:#0f172a; border:2px solid rgba(255,255,255,.08);
@@ -66,6 +92,22 @@
         Retour à la liste
     </a>
 
+    {{-- ── Notice base de données ──────────────────────────────────────────────── --}}
+    <div class="db-notice">
+        <div class="db-notice-title">
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24">
+                <path d="M12 9v4M12 17h.01" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/>
+                <circle cx="12" cy="12" r="10" stroke="#fbbf24" stroke-width="1.8"/>
+            </svg>
+            Base de données requise avant la création
+        </div>
+        <div class="db-notice-body">
+            La base de données doit <strong>exister</strong> sur votre hébergeur avant de soumettre ce formulaire.
+            Renseignez ci-dessous le nom exact, l'hôte et les identifiants fournis par votre hébergeur.
+            Le système testera la connexion avant toute création.
+        </div>
+    </div>
+
     <form method="POST" action="{{ route('admin.tenants.store') }}" id="createForm">
         @csrf
 
@@ -92,6 +134,25 @@
                 </div>
 
                 <div class="form-group">
+                    <label class="form-label" for="database">Base de données <span>*</span></label>
+                    <input type="text" id="database" name="database"
+                           class="form-control @error('database') is-invalid @enderror"
+                           value="{{ old('database') }}"
+                           placeholder="ex: geomatoszmflotte"
+                           maxlength="64"
+                           autocomplete="off"
+                           spellcheck="false"
+                           required>
+                    <div class="slug-preview" id="dbPreview">
+                        Base utilisée&nbsp;: <strong id="dbPreviewValue" style="color:#10b981;font-family:monospace;">—</strong>
+                    </div>
+                    <div style="font-size:.74rem;color:#475569;margin-top:.15rem;">
+                        Nom exact fourni par votre hébergeur — la base doit déjà exister.
+                    </div>
+                    @error('database') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                </div>
+
+                <div class="form-group">
                     <label class="form-label" for="country">Pays</label>
                     <input type="text" id="country" name="country" class="form-control"
                            value="{{ old('country', 'Côte d\'Ivoire') }}" placeholder="Côte d'Ivoire">
@@ -103,6 +164,54 @@
                            value="{{ old('timezone', 'Africa/Abidjan') }}" placeholder="Africa/Abidjan">
                 </div>
             </div>
+        </div>
+
+        {{-- Connexion base de données --}}
+        <div class="a-card form-section">
+            <p class="form-section-title">Connexion base de données</p>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label" for="db_host">Hôte <span>*</span></label>
+                    <input type="text" id="db_host" name="db_host"
+                           class="form-control @error('db_host') is-invalid @enderror"
+                           value="{{ old('db_host') }}"
+                           placeholder="ex: mysql.monhebergeur.com"
+                           autocomplete="off" spellcheck="false" required>
+                    @error('db_host') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="db_port">Port</label>
+                    <input type="number" id="db_port" name="db_port"
+                           class="form-control @error('db_port') is-invalid @enderror"
+                           value="{{ old('db_port', 3306) }}"
+                           min="1" max="65535" inputmode="numeric">
+                    @error('db_port') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="db_username">Identifiant <span>*</span></label>
+                    <input type="text" id="db_username" name="db_username"
+                           class="form-control @error('db_username') is-invalid @enderror"
+                           value="{{ old('db_username') }}"
+                           placeholder="ex: geomatoszmflotte"
+                           autocomplete="off" spellcheck="false" required>
+                    @error('db_username') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="db_password">Mot de passe <span>*</span></label>
+                    <input type="password" id="db_password" name="db_password"
+                           class="form-control @error('db_password') is-invalid @enderror"
+                           placeholder="••••••••"
+                           autocomplete="new-password" required>
+                    @error('db_password') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                </div>
+            </div>
+            <p style="font-size:.76rem;color:#475569;margin:.75rem 0 0;">
+                Ces identifiants sont chiffrés et stockés de façon sécurisée.
+                Le système testera la connexion avant de créer le client.
+            </p>
         </div>
 
         {{-- Contact --}}
@@ -185,30 +294,42 @@
 
 @push('scripts')
 <script>
-// Aperçu sous-domaine en temps réel
-const slugInput   = document.getElementById('slug');
-const slugDomain  = document.getElementById('slugDomain');
-const nameInput   = document.getElementById('name');
+const slugInput      = document.getElementById('slug');
+const slugDomain     = document.getElementById('slugDomain');
+const dbInput        = document.getElementById('database');
+const dbPreviewValue = document.getElementById('dbPreviewValue');
+const nameInput      = document.getElementById('name');
 
 function sanitizeSlug(val) {
     return val.toLowerCase()
-              .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+              .normalize('NFD').replace(/[̀-ͯ]/g, '')
               .replace(/[^a-z0-9-]/g, '-')
               .replace(/-+/g, '-')
               .replace(/^-|-$/g, '');
 }
 
-slugInput.addEventListener('input', () => {
-    slugDomain.textContent = slugInput.value || 'votre-slug';
-});
+function updateSlugPreview(slug) {
+    slugDomain.textContent = slug || 'votre-slug';
+}
+
+function updateDbPreview(val) {
+    dbPreviewValue.textContent = val || '—';
+}
+
+slugInput.addEventListener('input', () => updateSlugPreview(slugInput.value));
+dbInput.addEventListener('input',   () => updateDbPreview(dbInput.value));
 
 // Auto-remplir le slug depuis le nom (seulement si le slug est vide)
 nameInput.addEventListener('input', () => {
     if (!slugInput.value) {
         slugInput.value = sanitizeSlug(nameInput.value);
-        slugDomain.textContent = slugInput.value || 'votre-slug';
+        updateSlugPreview(slugInput.value);
     }
 });
+
+// Init avec les valeurs old() éventuelles (retour après erreur de validation)
+updateSlugPreview(slugInput.value);
+updateDbPreview(dbInput.value);
 
 // Désactiver le bouton pendant la soumission
 document.getElementById('createForm').addEventListener('submit', function () {

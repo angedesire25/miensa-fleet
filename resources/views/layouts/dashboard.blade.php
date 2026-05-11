@@ -2,12 +2,30 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <title>@yield('title', 'Tableau de bord') — Miensa Fleet</title>
     <meta name="csrf-token" content="{{ csrf_token() }}">
+
+    {{-- ── PWA ──────────────────────────────────────────────────────────── --}}
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#10b981">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="MiensaFleet">
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="144x144" href="/icons/icon-144x144.png">
+    <link rel="apple-touch-icon" sizes="128x128" href="/icons/icon-128x128.png">
+    <link rel="apple-touch-startup-image" href="/icons/icon-512x512.png">
+    <meta name="msapplication-TileImage" content="/icons/icon-144x144.png">
+    <meta name="msapplication-TileColor" content="#10b981">
+
     @php $appLogo = \App\Models\AppSetting::get('logo'); @endphp
     @if($appLogo)
     <link rel="icon" type="image/png" href="{{ Storage::url($appLogo) }}">
+    @else
+    <link rel="icon" type="image/png" href="/icons/icon-96x96.png">
     @endif
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
@@ -674,6 +692,8 @@
     </footer>
 </main>
 
+<x-mobile-nav />
+
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 // ── Configuration globale SweetAlert2 ──────────────────────────────────────
@@ -826,5 +846,265 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 @stack('scripts')
+
+{{-- ══════════════════════════════════════════════════════════════════════════
+     PWA — Bandeau réseau + Bannière installation + Service Worker
+     ══════════════════════════════════════════════════════════════════════════ --}}
+
+{{-- ── Bandeau réseau offline ──────────────────────────────────────────────── --}}
+<div id="network-status" style="
+    display:none; position:fixed; top:0; left:0; right:0; z-index:10001;
+    background:#f97316; color:#fff; text-align:center;
+    font-size:13px; font-weight:600; padding:8px 16px;
+    letter-spacing:.02em; box-shadow:0 2px 8px rgba(0,0,0,.3);
+">
+    ⚠️ Hors ligne — Les fiches seront synchronisées au retour du réseau
+</div>
+
+{{-- ── Bannière installation Android/Chrome ───────────────────────────────── --}}
+<div id="install-banner" style="
+    display:none; position:fixed; bottom:0; left:0; right:0; z-index:9999;
+    background:#0f172a; border-top:2px solid #10b981;
+    padding:14px 16px; align-items:center; gap:12px;
+    box-shadow:0 -6px 32px rgba(0,0,0,.5);
+">
+    <img src="/icons/icon-72x72.png"
+         style="width:48px;height:48px;border-radius:12px;flex-shrink:0;box-shadow:0 2px 8px rgba(16,185,129,.35);"
+         alt="MiensaFleet">
+    <div style="flex:1;min-width:0;">
+        <div style="color:#f1f5f9;font-size:15px;font-weight:700;margin-bottom:2px;">Installer MiensaFleet</div>
+        <div style="color:#64748b;font-size:12px;">Accès rapide depuis votre écran d'accueil</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-shrink:0;">
+        <button onclick="dismissInstallBanner()" style="
+            background:transparent;color:#94a3b8;
+            border:1px solid #334155;border-radius:8px;
+            padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;
+        ">Plus tard</button>
+        <button onclick="installApp()" style="
+            background:#10b981;color:#fff;border:none;border-radius:8px;
+            padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;
+            box-shadow:0 2px 10px rgba(16,185,129,.4);
+        ">Installer</button>
+    </div>
+</div>
+
+{{-- ── Bannière iOS (Safari) ───────────────────────────────────────────────── --}}
+<div id="pwa-ios-banner" style="
+    display:none; position:fixed; bottom:0; left:0; right:0; z-index:9999;
+    background:#1e293b; border-top:1px solid #334155;
+    padding:16px; text-align:center;
+    box-shadow:0 -4px 24px rgba(0,0,0,.4);
+">
+    <div style="font-size:28px;margin-bottom:8px;">📲</div>
+    <div style="color:#f1f5f9;font-size:13px;font-weight:600;margin-bottom:6px;">
+        Installer MiensaFleet sur votre iPhone
+    </div>
+    <div style="color:#94a3b8;font-size:12px;line-height:1.7;">
+        Appuyez sur <strong style="color:#10b981;">⬆ Partager</strong>
+        puis choisissez <strong style="color:#10b981;">Sur l'écran d'accueil</strong>
+    </div>
+    <button id="ios-dismiss-btn" style="
+        margin-top:12px;background:transparent;color:#64748b;
+        border:1px solid #334155;border-radius:8px;
+        padding:6px 16px;font-size:12px;cursor:pointer;
+    ">Fermer</button>
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    // ── Service Worker ───────────────────────────────────────────────────────
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+            navigator.serviceWorker.register('/sw.js', { scope: '/' })
+                .then(function (reg) {
+                    setInterval(function () { reg.update(); }, 30 * 60 * 1000);
+                })
+                .catch(function (err) { console.warn('[SW] Enregistrement échoué :', err); });
+        });
+    }
+
+    // ── Bandeau réseau ───────────────────────────────────────────────────────
+    var netBanner = document.getElementById('network-status');
+    function updateNetworkUI() {
+        if (!netBanner) return;
+        netBanner.style.display = navigator.onLine ? 'none' : 'block';
+        // Décaler le contenu principal pour ne pas masquer le nav
+        document.body.style.paddingTop = navigator.onLine ? '' : '40px';
+    }
+    window.addEventListener('online',  function () { updateNetworkUI(); });
+    window.addEventListener('offline', function () { updateNetworkUI(); });
+    updateNetworkUI();
+
+    // ── Bannière installation (beforeinstallprompt — Android/Chrome) ─────────
+    var deferredPrompt = null;
+
+    window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault();
+        deferredPrompt = e;
+        if (!localStorage.getItem('mf-install-dismissed')) {
+            var banner = document.getElementById('install-banner');
+            if (banner) banner.style.display = 'flex';
+        }
+    });
+
+    window.installApp = function () {
+        var banner = document.getElementById('install-banner');
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then(function () {
+            deferredPrompt = null;
+            if (banner) banner.style.display = 'none';
+        });
+    };
+
+    window.dismissInstallBanner = function () {
+        var banner = document.getElementById('install-banner');
+        if (banner) banner.style.display = 'none';
+        localStorage.setItem('mf-install-dismissed', '1');
+    };
+
+    window.addEventListener('appinstalled', function () {
+        deferredPrompt = null;
+        var banner = document.getElementById('install-banner');
+        if (banner) banner.style.display = 'none';
+    });
+
+    // ── Bannière iOS ─────────────────────────────────────────────────────────
+    (function () {
+        var isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+        var isStandalone = window.navigator.standalone === true;
+        if (isIos && !isStandalone && !localStorage.getItem('mf-ios-dismissed')) {
+            var banner = document.getElementById('pwa-ios-banner');
+            var btn    = document.getElementById('ios-dismiss-btn');
+            if (banner) banner.style.display = 'block';
+            if (btn) btn.addEventListener('click', function () {
+                banner.style.display = 'none';
+                localStorage.setItem('mf-ios-dismissed', '1');
+            });
+        }
+    })();
+
+    // ── Exposition globale de l'utilitaire offline ───────────────────────────
+    window.MiensaFleetOffline = (function () {
+        var DB_NAME    = 'MiensaFleetDB';
+        var DB_VERSION = 1;
+
+        function openDB() {
+            return new Promise(function (resolve, reject) {
+                var req = indexedDB.open(DB_NAME, DB_VERSION);
+                req.onupgradeneeded = function (e) {
+                    var db = e.target.result;
+                    if (!db.objectStoreNames.contains('pending_inspections')) {
+                        db.createObjectStore('pending_inspections', { keyPath: 'id', autoIncrement: true });
+                    }
+                    if (!db.objectStoreNames.contains('pending_trips')) {
+                        db.createObjectStore('pending_trips', { keyPath: 'id', autoIncrement: true });
+                    }
+                };
+                req.onsuccess = function () { resolve(req.result); };
+                req.onerror   = function () { reject(req.error); };
+            });
+        }
+
+        function save(storeName, data) {
+            return openDB().then(function (db) {
+                return new Promise(function (resolve, reject) {
+                    var tx  = db.transaction(storeName, 'readwrite');
+                    var req = tx.objectStore(storeName).add(data);
+                    req.onsuccess = function () { resolve(req.result); };
+                    req.onerror   = function () { reject(req.error); };
+                });
+            });
+        }
+
+        function registerSync(tag) {
+            if ('serviceWorker' in navigator && 'SyncManager' in window) {
+                return navigator.serviceWorker.ready.then(function (reg) {
+                    return reg.sync.register(tag);
+                });
+            }
+            return Promise.resolve();
+        }
+
+        return {
+            save: function (storeName, data) {
+                return save(storeName, data).then(function (id) {
+                    var tag = storeName === 'pending_trips' ? 'sync-trips' : 'sync-inspections';
+                    return registerSync(tag).then(function () { return id; });
+                });
+            },
+        };
+    })();
+
+})();
+</script>
+
+@auth
+<script>
+(function () {
+    'use strict';
+
+    var VAPID_PUBLIC_KEY = '{{ config('miensafleet.vapid_public_key') }}';
+    var SUBSCRIBE_URL    = '{{ route('push.subscribe') }}';
+    var CSRF_TOKEN       = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+    function urlBase64ToUint8Array(base64String) {
+        var padding = '='.repeat((4 - base64String.length % 4) % 4);
+        var base64  = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+        var raw     = window.atob(base64);
+        var arr     = new Uint8Array(raw.length);
+        for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+        return arr;
+    }
+
+    function subscribePush() {
+        if (!VAPID_PUBLIC_KEY) return;
+        navigator.serviceWorker.ready.then(function (reg) {
+            return reg.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+            });
+        }).then(function (sub) {
+            var json = sub.toJSON();
+            return fetch(SUBSCRIBE_URL, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': CSRF_TOKEN,
+                },
+                body: JSON.stringify({
+                    endpoint:   json.endpoint,
+                    public_key: json.keys ? json.keys.p256dh : null,
+                    auth_token: json.keys ? json.keys.auth   : null,
+                }),
+            });
+        }).catch(function (err) {
+            console.warn('[Push] Abonnement échoué :', err);
+        });
+    }
+
+    function requestAndSubscribe() {
+        if (!('PushManager' in window) || !('serviceWorker' in navigator)) return;
+        if (Notification.permission === 'granted') {
+            subscribePush();
+        } else if (Notification.permission === 'default') {
+            Notification.requestPermission().then(function (perm) {
+                if (perm === 'granted') subscribePush();
+            });
+        }
+    }
+
+    // Demander la permission après 3 secondes, une seule fois par session
+    if (!sessionStorage.getItem('mf-push-asked')) {
+        sessionStorage.setItem('mf-push-asked', '1');
+        setTimeout(requestAndSubscribe, 3000);
+    }
+})();
+</script>
+@endauth
 </body>
 </html>

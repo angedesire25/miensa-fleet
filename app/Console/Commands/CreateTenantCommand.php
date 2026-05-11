@@ -13,7 +13,7 @@ use Illuminate\Support\Str;
 
 /**
  * Provisionne un nouveau client (tenant) :
- *   1. Crée la base de données dédiée
+ *   1. Vérifie que la base de données existe
  *   2. Crée l'enregistrement dans la table landlord `tenants`
  *   3. Exécute les migrations sur la nouvelle base
  *   4. Exécute le seeder de rôles/permissions
@@ -22,17 +22,23 @@ use Illuminate\Support\Str;
  * Usage :
  *   php artisan tenant:create
  *   php artisan tenant:create --name="Geomatos SARL" --slug=geomatos --plan=essential
+ *   php artisan tenant:create --slug=geomatos --db-host=mysql.host.com --db-username=user --db-password=secret
  */
 class CreateTenantCommand extends Command
 {
     protected $signature = 'tenant:create
-        {--name=      : Nom complet de la société}
-        {--slug=      : Identifiant unique (ex: geomatos) — utilisé pour le sous-domaine}
-        {--plan=      : Plan tarifaire : free|essential|pro (défaut : free)}
-        {--email=     : Email du contact principal}
-        {--phone=     : Téléphone du contact}
-        {--contact=   : Nom du contact principal}
-        {--domain=    : Domaine personnalisé (optionnel, défaut : {slug}.miensafleet.ci)}';
+        {--name=        : Nom complet de la société}
+        {--slug=        : Identifiant unique (ex: geomatos) — utilisé pour le sous-domaine}
+        {--plan=        : Plan tarifaire : free|essential|pro (défaut : free)}
+        {--email=       : Email du contact principal}
+        {--phone=       : Téléphone du contact}
+        {--contact=     : Nom du contact principal}
+        {--domain=      : Domaine personnalisé (optionnel, défaut : {slug}.miensafleet.ci)}
+        {--database=    : Nom exact de la base de données (défaut : généré depuis le slug)}
+        {--db-host=     : Hôte de la base de données (défaut : valeur env)}
+        {--db-port=     : Port de la base de données (défaut : 3306)}
+        {--db-username= : Identifiant de connexion (défaut : valeur env)}
+        {--db-password= : Mot de passe de connexion (défaut : valeur env)}';
 
     protected $description = 'Crée et provisionne un nouveau tenant (client MiensaFleet)';
 
@@ -65,22 +71,28 @@ class CreateTenantCommand extends Command
         }
 
         $landlordDomain = config('multitenancy.landlord_domain', 'miensafleet.ci');
-        $domain   = $this->option('domain') ?: "{$slug}.{$landlordDomain}";
-        $database = Tenant::databaseNameForSlug($slug);
+        $domain   = $this->option('domain')   ?: "{$slug}.{$landlordDomain}";
+        $database = $this->option('database') ?: Tenant::databaseNameForSlug($slug);
+        $dbHost   = $this->option('db-host')     ?: null;
+        $dbPort   = $this->option('db-port')     ? (int) $this->option('db-port') : null;
+        $dbUser   = $this->option('db-username') ?: null;
+        $dbPass   = $this->option('db-password') ?: null;
 
         // ── Récapitulatif ─────────────────────────────────────────────────
         $this->newLine();
         $this->table(
             ['Paramètre', 'Valeur'],
             [
-                ['Société',    $name],
-                ['Slug',       $slug],
-                ['Domaine',    $domain],
+                ['Société',         $name],
+                ['Slug',            $slug],
+                ['Domaine',         $domain],
                 ['Base de données', $database],
-                ['Plan',       $plan->name . ' (' . number_format($plan->price_monthly, 0, ',', ' ') . ' FCFA/mois)'],
-                ['Contact',    $contact ?? '—'],
-                ['Email',      $email   ?? '—'],
-                ['Téléphone',  $phone   ?? '—'],
+                ['Hôte DB',         $dbHost ?? '(env par défaut)'],
+                ['Identifiant DB',  $dbUser ?? '(env par défaut)'],
+                ['Plan',            $plan->name . ' (' . number_format($plan->price_monthly, 0, ',', ' ') . ' FCFA/mois)'],
+                ['Contact',         $contact ?? '—'],
+                ['Email',           $email   ?? '—'],
+                ['Téléphone',       $phone   ?? '—'],
             ]
         );
 
@@ -89,17 +101,27 @@ class CreateTenantCommand extends Command
             return self::SUCCESS;
         }
 
-        // ── 2. Créer la base de données ───────────────────────────────────
-        $this->info("→ Création de la base de données « {$database} »…");
+        // ── 2. Vérifier que la base de données existe ────────────────────
+        $this->info("→ Vérification de la base de données « {$database} »…");
+        $connOverrides = ['database' => $database];
+        if ($dbHost)   $connOverrides['host']     = $dbHost;
+        if ($dbPort)   $connOverrides['port']      = $dbPort;
+        if ($dbUser)   $connOverrides['username']  = $dbUser;
+        if ($dbPass)   $connOverrides['password']  = $dbPass;
+
+        foreach ($connOverrides as $k => $v) {
+            config(["database.connections.tenant.{$k}" => $v]);
+        }
+        DB::purge('tenant');
         try {
-            DB::connection('landlord')->statement(
-                "CREATE DATABASE IF NOT EXISTS `{$database}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
-            );
+            DB::connection('tenant')->getPdo();
         } catch (\Exception $e) {
-            $this->error("Impossible de créer la base : " . $e->getMessage());
+            $this->error("La base « {$database} » n'existe pas ou n'est pas accessible.");
+            $this->line("  Vérifiez que la base existe sur votre hébergeur et que les identifiants sont corrects.");
+            $this->line("  Puis relancez : <comment>php artisan tenant:create --slug={$slug}</comment>");
             return self::FAILURE;
         }
-        $this->line("  <info>✓</info> Base créée.");
+        $this->line("  <info>✓</info> Base accessible.");
 
         // ── 3. Créer l'enregistrement tenant ─────────────────────────────
         $this->info("→ Enregistrement du tenant dans la base landlord…");
@@ -112,6 +134,10 @@ class CreateTenantCommand extends Command
             'slug'          => $slug,
             'domain'        => $domain,
             'database'      => $database,
+            'db_host'       => $dbHost,
+            'db_port'       => $dbPort ?? 3306,
+            'db_username'   => $dbUser,
+            'db_password'   => $dbPass ? \Illuminate\Support\Facades\Crypt::encryptString($dbPass) : null,
             'plan_id'       => $plan->id,
             'status'        => $plan->trial_days > 0 ? 'trial' : 'active',
             'trial_ends_at' => $trialEndsAt,

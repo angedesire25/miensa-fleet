@@ -27,8 +27,9 @@ class Tenant extends BaseTenant
     protected $connection = 'landlord';
 
     protected $fillable = [
-        'name', 'slug', 'domain', 'database', 'plan_id',
-        'status', 'trial_ends_at', 'subscribed_at', 'suspended_at', 'suspension_reason',
+        'name', 'slug', 'domain', 'database',
+        'db_host', 'db_port', 'db_username', 'db_password',
+        'plan_id', 'status', 'trial_ends_at', 'subscribed_at', 'suspended_at', 'suspension_reason',
         'contact_name', 'contact_email', 'contact_phone',
         'country', 'timezone', 'max_vehicles', 'max_users',
     ];
@@ -80,7 +81,7 @@ class Tenant extends BaseTenant
         return $this->status === 'suspended';
     }
 
-    /** Retourne le nom de la BDD à partir du slug si non défini */
+    /** Retourne le nom de la BDD conventionnel à partir du slug */
     public static function databaseNameForSlug(string $slug): string
     {
         return 'miensafleet_' . str_replace('-', '_', $slug);

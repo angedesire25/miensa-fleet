@@ -39,14 +39,12 @@ return [
         ],
 
         'public' => [
-            'driver' => 'local',
-            // En production : STORAGE_PUBLIC_PATH=/var/www/miensa-fleet-uploads
-            // En développement : laisse vide → utilise storage/app/public par défaut
-            'root' => env('STORAGE_PUBLIC_PATH', storage_path('app/public')),
-            'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
+            'driver'     => 'local',
+            'root'       => public_path('uploads'),
+            'url'        => rtrim(env('APP_URL', 'http://localhost'), '/') . '/uploads',
             'visibility' => 'public',
-            'throw' => false,
-            'report' => false,
+            'throw'      => false,
+            'report'     => false,
         ],
 
         's3' => [
@@ -76,8 +74,8 @@ return [
     */
 
     'links' => [
-        // Le symlink public/storage pointe vers le même dossier que le disk 'public'
-        public_path('storage') => env('STORAGE_PUBLIC_PATH', storage_path('app/public')),
+        // Plus utilisé — les fichiers vont directement dans public/uploads/
+        // public_path('storage') => storage_path('app/public'),
     ],
 
 ];

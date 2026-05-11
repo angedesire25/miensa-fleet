@@ -17,6 +17,7 @@ use App\Observers\RepairObserver;
 use App\Observers\VehicleDocumentObserver;
 use App\Observers\VehicleRequestObserver;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -50,6 +51,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // En multi-tenant, APP_URL ≠ domaine du tenant courant.
+        // On force la génération d'URLs (route(), url(), action())
+        // à utiliser le domaine réel de la requête HTTP entrante.
+        if (! app()->runningInConsole()) {
+            URL::forceRootUrl(request()->getSchemeAndHttpHost());
+        }
+
         // Langue française pour toutes les dates Carbon/diffForHumans
         Carbon::setLocale('fr');
 

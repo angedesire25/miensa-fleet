@@ -28,6 +28,8 @@ class Repair extends Model
         'availability_date_requested',
         'actual_exit_date',
         // immobilization_days : colonne virtuelle MySQL, non fillable
+        'duree_immobilisation',
+        'fiche_di_path',
         'signature_company_path',
         'signature_garage_path',
         'signature_company_exit_path',

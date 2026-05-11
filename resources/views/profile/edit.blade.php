@@ -282,6 +282,28 @@
             </div>
         </div>
 
+        {{-- ── Guide d'installation PWA ─────────────────────────────────────── --}}
+        <div class="profile-card">
+            <div class="card-header">
+                <span style="font-size:1.1rem;">📱</span>
+                <span class="card-title">Application mobile</span>
+            </div>
+            <div class="card-body" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
+                <div>
+                    <div style="font-size:.875rem;font-weight:600;color:#0f172a;margin-bottom:.3rem;">
+                        Installer Miensa Fleet sur votre téléphone
+                    </div>
+                    <div style="font-size:.8rem;color:#64748b;line-height:1.5;">
+                        Accès rapide, mode hors-ligne et notifications push — disponibles sur Android et iPhone.
+                    </div>
+                </div>
+                <a href="{{ route('pwa.install') }}"
+                   style="display:inline-flex;align-items:center;gap:.4rem;padding:.6rem 1.2rem;border-radius:.5rem;background:#10b981;color:#fff;font-size:.83rem;font-weight:700;text-decoration:none;white-space:nowrap;">
+                    Guide d'installation
+                </a>
+            </div>
+        </div>
+
     </div>
 </div>
 

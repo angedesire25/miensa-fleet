@@ -12,6 +12,10 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
         then: function () {
+            // Routes API sync PWA — utilise le middleware 'web' pour la session/CSRF
+            \Illuminate\Support\Facades\Route::middleware('web')
+                ->prefix('api/v1')
+                ->group(base_path('routes/api.php'));
             $landlordDomain = env('LANDLORD_DOMAIN', 'miensafleet.ci');
 
             // Routes publiques landlord (pricing, signup) — domaine principal seulement

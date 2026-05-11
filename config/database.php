@@ -80,13 +80,15 @@ return [
         ],
 
         // ── Base tenant : connexion dynamique commutée par SwitchTenantDatabaseTask
+        // Les valeurs host/port/username/password sont des fallbacks :
+        // chaque tenant peut stocker ses propres credentials en base landlord.
         'tenant' => [
             'driver'    => 'mysql',
-            'host'      => env('DB_HOST', '127.0.0.1'),
-            'port'      => env('DB_PORT', '3306'),
-            'database'  => null, // rempli dynamiquement à chaque requête
-            'username'  => env('DB_USERNAME', 'root'),
-            'password'  => env('DB_PASSWORD', ''),
+            'host'      => env('TENANT_DB_HOST',     env('DB_HOST',     '127.0.0.1')),
+            'port'      => env('TENANT_DB_PORT',     env('DB_PORT',     '3306')),
+            'database'  => null, // rempli dynamiquement par SwitchTenantDatabaseTask
+            'username'  => env('TENANT_DB_USERNAME', env('DB_USERNAME', 'root')),
+            'password'  => env('TENANT_DB_PASSWORD', env('DB_PASSWORD', '')),
             'charset'   => 'utf8mb4',
             'collation' => 'utf8mb4_unicode_ci',
             'prefix'    => '',
